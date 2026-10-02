@@ -10,7 +10,7 @@ Phase 0 is a gate. If IGA bulk XML isn't available, Phase 1 timeline changes —
 
 ```
 Phase 0 (2 weeks)   → Phase 1 (4–6 weeks)   → Phase 2 (8–12 weeks)   → Phase 3 (ongoing)
-Validate            → Indiana Code MVP       → Expand                  → CLE
+Validate            → Indiana Code MVP       → Expand                  → Sustain
 ```
 
 ---
@@ -30,9 +30,7 @@ Validate            → Indiana Code MVP       → Expand                  → C
 
 4. **MCP tooling confirmed** — Stand up a minimal Python MCP server with one tool (`get_section`). Connect it to case-reader or another MCP client. Confirm the integration pattern works.
 
-5. **Domain strategy decision** — Decide: does indianacle.com host both the free law search and the CLE track as separate sections? Or separate subdomains (cle.indianacle.com)? Make the call. Note implications for web structure in Phase 1.
-
-6. **openlegaltools.org assessment** — Is this domain worth keeping for the open-source/public-good framing? Redirect to indianacle.com? Let expire? One decision, no revisiting.
+5. **openlegaltools.org disposition** — Let expire or redirect to indianacle.com. Not our flag. One decision, no revisiting.
 
 ### Critical Risk: IGA XML Availability
 
@@ -183,64 +181,13 @@ Solo developer with AI assistance: **~60–80 hours** across 8–12 weeks. Court
 
 ---
 
-## Phase 3: CLE
-
-**Duration:** Ongoing — first course target is 6 months post-Phase 1 launch  
-**Goal:** First CLE course accredited and sold. Revenue flowing.
-
-### Key Deliverables
-
-1. **ICLEF accreditation application** — Contact the Indiana Continuing Legal Education Forum. Understand their application process and timeline (typically 30–60 days for approval). Start this process early — before content is built.
-
-2. **First course defined** — Topic: legal technology and AI tools for Indiana attorneys. Directly maps to ITJD brand. Target: 1.0–1.5 CLE credit hours. Format: video + written materials.
-
-3. **Course hosting infrastructure** — Platform decision: build on indianacle.com (custom) or embed a course platform (Teachable, Thinkific). Custom is more cohesive; third-party is faster. Decide based on time available.
-
-4. **Payment processing** — Stripe integration. Per-course purchase ($25–75). Receipts for CLE tracking.
-
-5. **CLE completion tracking** — Attorneys need proof of completion. Certificate generation minimum. Ideally: Indiana MCLE portal submission support.
-
-### Dependencies
-
-- Phase 1 live (indianacle.com established, domain has credibility)
-- ICLEF application submitted and approved
-- Content recorded and edited
-
-### Success Criteria
-
-- [ ] ICLEF accreditation granted for first course
-- [ ] First course live and purchasable at indianacle.com
-- [ ] First paying customer
-- [ ] Completion certificates generated
-
-### Revenue Model
-
-Per-course: $25–75 (1-2 credit hours)  
-Annual subscription: $150–250 (covers full 36-hour requirement over 3 years — not feasible solo, but a target state)
-
-Focus first on per-course. Subscription only after catalog depth warrants it.
-
-### What to Defer
-
-- Live webinars (complex logistics — defer until per-course product is stable)
-- Subscription model (needs catalog depth first)
-- Content on anything other than legal tech (stay in ITJD lane)
-
-### Effort
-
-CLE is a parallel track. Content creation is the dominant work — probably 40+ hours for a quality 1.5-credit course. Accreditation and infrastructure add another 20. This is a multi-month investment that doesn't need Phase 2 to be complete.
-
----
-
 ## Decisions Outstanding
 
 | Decision | Needed By | Notes |
 |----------|-----------|-------|
-| IGA XML availability | End of Phase 0 | Gate for Phase 1 timeline |
+| IGA API token | Now | Email apitoken.request@iga.in.gov — free, same-day |
 | IAC format (XML vs scrape) | Mid Phase 1 | Parallel research |
-| CLE platform (custom vs embed) | Start of Phase 3 | Build vs buy |
-| openlegaltools.org disposition | Phase 0 | Redirect, repurpose, or expire |
-| Domain structure (one site vs subdomains) | Phase 0 | Affects Phase 1 web build |
+| openlegaltools.org | Phase 0 | Shared domain — not our flag. Let expire or redirect. |
 
 ---
 
@@ -249,4 +196,6 @@ CLE is a parallel track. Content creation is the dominant work — probably 40+ 
 - A replacement for official sources. Every section links back. This is an access layer.
 - A legal research platform. No annotations, no citators, no headnotes. That's Westlaw territory.
 - A law firm or legal services provider. Just tools.
+- A CLE provider. That's the stage. This is the bunker.
 - A big production system. SQLite on a farm worker handles 50k sections fine. Don't over-engineer it.
+- A 50-state platform. Indiana is home. Build it right for one place first.

@@ -2,7 +2,7 @@
 
 **Domain:** Indiana legal data — Indiana Code, Administrative Code, court rules — made accessible.
 **Owner:** Danielle Teagarden, JD
-**Domain:** indianacle.com
+**Domain:** indianacle.com — Indiana as oracle. Our flag.
 
 ---
 
@@ -10,15 +10,14 @@
 
 Indiana's official legal sources are functional but one-dimensional. This project makes them accessible:
 - Indiana Code as structured, searchable text (not PDFs)
-- Terms-and-connectors full-text search
+- Terms-and-connectors full-text search over statutes and opinions
 - MCP server exposing Indiana law to AI tools
 - Free. Links back to official sources. Not a replacement — an access layer.
 
-Long-term: the entire Indiana Code digitized as structured text. Start with the Code, expand to court rules and administrative code.
+Indiana is home. Build it right for one place. No CLE, no public stage, no accreditation. The bunker.
 
 Related brands:
 - **ITJD** (`~/projects/itjd/`) — the technologist-lawyer brand; this project lives under it
-- **indianacle.com** — the domain; CLE hosting is a separate revenue track on this domain
 
 ---
 
@@ -31,8 +30,7 @@ Related brands:
 | `search/` | Search index and query logic (SQLite FTS5 or similar) |
 | `mcp-server/` | MCP server exposing Indiana law as tools |
 | `api/` | REST API layer (optional, for web frontend) |
-| `web/` | Search UI — simple, fast, public |
-| `cle/` | CLE hosting track (separate revenue stream) |
+| `web/` | Public search UI at indianacle.com |
 
 ---
 
@@ -40,12 +38,13 @@ Related brands:
 
 | Source | Format | URL |
 |--------|--------|-----|
-| Indiana Code | XML | iga.in.gov |
-| Indiana Administrative Code | XML/HTML | in.gov |
+| Indiana Code | REST API (JSON) | api.iga.in.gov — free token, official |
+| Indiana Appellate Opinions | S3 bulk CSV + REST API | CourtListener (ind, indctapp, indtc) |
+| Indiana Administrative Code | TBD (HTML or XML) | in.gov |
 | Indiana Court Rules | PDF/HTML | in.gov/courts |
-| Indiana Rules of Trial Procedure | HTML | courts.in.gov |
 
-Indiana Code XML from the IGA is the priority target. Public domain — no licensing issues.
+Indiana Code via IGA public REST API. Token: email apitoken.request@iga.in.gov.
+Opinions via CourtListener S3 bulk data (bootstrap) + daily API sync. Public domain.
 
 ---
 
@@ -67,15 +66,6 @@ search_court_rules(query)
 search_admin_code(query, agency?)
   → Indiana Administrative Code search
 ```
-
----
-
-## CLE Track (separate, same domain)
-
-Indiana requires 36 CLE hours per 3-year reporting period.
-Focus: legal technology, AI in law, legal research tools — maps directly to ITJD brand.
-Competition: ICLEF (incumbent), ISBA. Niche provider opportunity.
-Revenue model: per-course purchase or subscription.
 
 ---
 
