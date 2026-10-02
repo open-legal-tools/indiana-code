@@ -85,6 +85,23 @@ Law should be accessible. Serving text with search treats users — attorneys an
 
 ---
 
+## Current Status
+
+**Phase 0 — Validate** *(started October 2026)*
+
+Active work items:
+- [ ] Confirm IGA XML availability and download format
+- [ ] Parse one sample title (XML → SQLite FTS5 proof of concept)
+- [ ] Stand up minimal MCP server and test with case-reader
+- [ ] Decide domain structure (one site vs subdomains for CLE)
+- [ ] Assess openlegaltools.org disposition
+
+See `ROADMAP.md` for full phase plan and success criteria.
+
+Phase 1 (Indiana Code MVP) begins when Phase 0 validation is complete.
+
+---
+
 ## Director
 
 Ventures Director — reports to the Captain.
