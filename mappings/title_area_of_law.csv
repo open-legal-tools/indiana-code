@@ -1,0 +1,44 @@
+title_id,title_heading,role,lmss_label,lmss_iri,lmss_depth,match,note,lmss_owl_sha256,lmss_parent_label
+1,General Provisions,,,,,none,no suitable Area of Law class found,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,
+2,General Assembly,primary,Public and Administrative Law,http://lmss.sali.org/R8YijwyycPV6XzUJaud9SB1,1,approximate,legislative organization,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+3,Elections,primary,Election Law,http://lmss.sali.org/RGVrDmO3wOb1JN6PDlLBFK,2,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Public and Administrative Law
+4,State Offices and Administration,primary,Public and Administrative Law,http://lmss.sali.org/R8YijwyycPV6XzUJaud9SB1,1,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+5,State and Local Administration,primary,Public and Administrative Law,http://lmss.sali.org/R8YijwyycPV6XzUJaud9SB1,1,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+5,State and Local Administration,secondary,Municipal Law,http://lmss.sali.org/R7t6kRXe15nhWQpnC4TYjjk,1,approximate,local portions,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+6,Taxation,primary,Tax and Revenue Law,http://lmss.sali.org/RcVabDAyOfCmuIYjaqoxHf,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+7.1,Alcohol and Tobacco,,,,,none,no suitable Area of Law class found,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,
+8,Utilities and Transportation,primary,Transportation Law,http://lmss.sali.org/R9qjABGONgw3rbekxhtcxZh,1,approximate,transportation half,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+8,Utilities and Transportation,secondary,Energy Law,http://lmss.sali.org/R9pmjLDKAMzm147xIPPq5ul,1,approximate,utilities half,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+9,Motor Vehicles,primary,Motor Vehicle Law,http://lmss.sali.org/RBd6mCquEANjUvn59AqC7Sj,2,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Transportation Law
+10,Public Safety,primary,Public and Administrative Law,http://lmss.sali.org/R8YijwyycPV6XzUJaud9SB1,1,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+11,Corrections,primary,Prison Law,http://lmss.sali.org/R81c1psAgogF7fBsY65GnQy,2,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Criminal Law
+12,Human Services,primary,Public Health and Welfare Law,http://lmss.sali.org/R8a7iojo7eVrZ8CWO44QE0G,2,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Public and Administrative Law
+13,Environment,primary,Environmental and Natural Resource Law,http://lmss.sali.org/RRfuF3AuewVT4SR15di375,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+14,Natural and Cultural Resources,primary,Environmental and Natural Resource Law,http://lmss.sali.org/RRfuF3AuewVT4SR15di375,1,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+15,Agriculture and Animals,primary,Agriculture Law,http://lmss.sali.org/RYdDlq7cXsPj2kB0yDsDGF,1,close,animals portion not separately classed,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+16,Health,primary,Health Law,http://lmss.sali.org/Rd6ivGOMbi4Slsu4ynPmMX,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+20,Education,primary,Education Law,http://lmss.sali.org/RD13zMDizrkliKHQU6IzISt,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+21,Higher Education,primary,Education Law,http://lmss.sali.org/RD13zMDizrkliKHQU6IzISt,1,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+22,Labor and Safety,primary,Labor and Employment Law,http://lmss.sali.org/RCzvtNXIrDJF8xkmOoc6JKH,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+22,Labor and Safety,secondary,Employment Health and Safety Law,http://lmss.sali.org/R9WauLukPXgSHKmovMisEfr,2,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Labor and Employment Law
+23,Business and Other Associations,primary,Business Organizations Law,http://lmss.sali.org/R8AC0Iq3zua7VGgBd0jCBtz,2,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Corporate Law
+23,Business and Other Associations,secondary,Corporate Law,http://lmss.sali.org/RF0Bb0267149dFC8b5e349a1,1,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+24,Trade Regulation,primary,Commercial and Trade Law,http://lmss.sali.org/RqNYDJtQ1pAsGPKZNEUlET,1,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+24,Trade Regulation,secondary,Consumer Protection Law,http://lmss.sali.org/RCovPJMo8mH3uZhlySLgWIa,2,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Commercial and Trade Law
+25,Professions and Occupations,,,,,none,no suitable Area of Law class found,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,
+26,Commercial Law,primary,Commercial Transactions Law,http://lmss.sali.org/RCPtRu7JjCg1Do3DUtQofho,2,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Contract Law
+27,Insurance,primary,Insurance Law,http://lmss.sali.org/RDFhkhLQDtnN9dqbZSYSlpC,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+28,Financial Institutions,primary,Banking Law,http://lmss.sali.org/R7meQhKYGkcA57UZ7v4JOdA,1,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+28,Financial Institutions,secondary,Finance and Lending Law,http://lmss.sali.org/RDhhApr0eDVle3F076WAVct,1,approximate,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+29,Probate,primary,Probate Law,http://lmss.sali.org/RrwhSTWvgKB461Y72fWdZV,2,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Personal and Family Law
+30,Trusts and Fiduciaries,primary,Trusts and Estate Planning Law,http://lmss.sali.org/R8rmINPJcI5dRjZrlQZA8v6,2,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Personal and Family Law
+31,Family Law and Juvenile Law,primary,Personal and Family Law,http://lmss.sali.org/RBFgL4Dth9VONjmIdH0bEOs,1,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+31,Family Law and Juvenile Law,secondary,Juvenile Law,http://lmss.sali.org/RCySmY2p2KUDkrD6zQlVygb,2,exact,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Personal and Family Law
+32,Property,primary,Real Property Law,http://lmss.sali.org/RDb8aZxNJsmCvQGbfiFyfI7,1,close,title also covers personal property,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+32,Property,secondary,Personal Property Law,http://lmss.sali.org/R8lqqKPmifNK2vDWzRQGbVw,2,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Personal Injury and Tort Law
+33,Courts and Court Officers,,,,,none,no suitable Area of Law class found,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,
+34,Civil Law and Procedure,,,,,none,no suitable Area of Law class found,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,
+35,Criminal Law and Procedure,primary,Criminal Law,http://lmss.sali.org/RMZ6lNihK8TG4Flhco1yTy,1,exact,procedure portion is not separately classed,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+36,Local Government,primary,Municipal Law,http://lmss.sali.org/R7t6kRXe15nhWQpnC4TYjjk,1,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+37,Consumer Lending,primary,Finance and Lending Law,http://lmss.sali.org/RDhhApr0eDVle3F076WAVct,1,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Area of Law
+37,Consumer Lending,secondary,Consumer Protection Law,http://lmss.sali.org/RCovPJMo8mH3uZhlySLgWIa,2,close,,51acefd5051aa8f52e60d6dd142b0925c7cec3a5d789bfbe4fcbe69021c9bba1,Commercial and Trade Law
