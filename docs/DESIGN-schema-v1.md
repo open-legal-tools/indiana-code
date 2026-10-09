@@ -62,5 +62,16 @@ PYTHONPATH=src python -m indiana_law.cli build-store store.db --snapshot ID:YEAR
 python -m pytest tests
 ```
 
+## MCP tools (`src/indiana_law/mcp_server.py`, local stdio; `tools.py` holds the logic)
+`ic_search`, `ic_resolve_citation`, `ic_get_section`, `ic_get_versions`, `ic_browse`, `ic_get_act`. All read-only, titled, with
+declared output schemas; every answer carries `unofficial`, the disclaimer, snapshot and dates, and `flags`. Run with
+`INDIANA_LAW_DB=<store> PYTHONPATH=src python -m indiana_law.mcp_server`; `scripts/smoke_mcp.py` starts it over stdio and asks
+twelve research-style questions (answers were 213 to about 3,200 tokens each in the first run).
+
+## SALI mapping
+`mappings/title_area_of_law.csv` maps each Code title to LMSS Area of Law classes (hand-curated; exact, close or approximate; five
+titles left unmapped). `scripts/make_title_map.py` rebuilds it and verifies every class against `LMSS.owl`, whose SHA-256 is recorded.
+No section-level tags exist yet.
+
 ## Not decided here
-Hosting, public site, registration as a connector, SALI tagging of sections, opinions, and any licence for this repository.
+Hosting, public site, registration as a connector, section-level SALI tags, opinions, and any licence for this repository.

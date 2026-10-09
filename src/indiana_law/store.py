@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS act_clause(
   act_id TEXT NOT NULL, section_in_act INTEGER, kind TEXT, target TEXT, level TEXT,
   effective_date TEXT, basis TEXT, retroactive INTEGER);
 CREATE INDEX IF NOT EXISTS ix_clause_target ON act_clause(target);
+CREATE INDEX IF NOT EXISTS ix_app_title ON appearance(snapshot_id, title_id);
+CREATE INDEX IF NOT EXISTS ix_app_article ON appearance(snapshot_id, article_id);
+CREATE INDEX IF NOT EXISTS ix_app_chapter ON appearance(snapshot_id, chapter_id);
+CREATE INDEX IF NOT EXISTS ix_app_vid ON appearance(vid);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
