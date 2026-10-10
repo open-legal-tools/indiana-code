@@ -65,7 +65,7 @@ Every release is a versioned bundle: JSONL canonical files, a SQLite build, a ma
 
 1. **Source:** CourtListener bulk files (public domain mark; terms read 2026-10-10). Record snapshot date and hashes. FCRA-use restriction and "attribute honestly" go into our terms.
 2. **Select:** Indiana dockets (`ind`, `indctapp`, `indtc`), clusters, then stream the 55 GB opinions file for those clusters; keep the text and metadata; store `data_through` per court.
-3. **Parse components** (rules first, then model-assisted): caption, panel, procedural history, issues, facts, standard of review, analysis, holding statements, disposition, concurrence, dissent, per curiam; every component a span with offsets. Publication status and memorandum decisions labeled (App. R. 65: memoranda issued on or after 2023-01-01 may be cited for persuasive value; *agent-reported*).
+3. **Parse components** (rules first, then model-assisted): caption, panel, procedural history, issues, facts, standard of review, analysis, holding statements, disposition, concurrence, dissent, per curiam; every component a span with offsets. **Also parse the decision form and the case number from the text:** the top-of-opinion disclaimer language and the "Memorandum Decision" or "Opinion" wording (and the footer, which carries the case number) set `decision_form` and `citability` (Danielle's hypothesis that memoranda are present but labeled published; to be tested first, see `docs/IDEAS.md`). Normalize case numbers to a canonical form. Publication status and memorandum decisions labeled (App. R. 65: memoranda issued on or after 2023-01-01 may be cited for persuasive value; *agent-reported*).
 4. **Citations:** eyecite for case citations; our Indiana Code pattern for statutes (eyecite's Indiana statute coverage is unverified); resolve statutes to a section id **and a version by the opinion's date**; resolve cases through the citation map.
 5. **Gap handling:** quarterly bulk lag is bridged by (A) `data_through` flags and a pointer to the courts' opinion pages, (B) an API top-up for new Indiana opinions with an account token (default limits 5 a minute, 50 an hour, 125 a day), (C) later, webhooks. The courts' own endpoint is not used without their permission.
 
@@ -157,6 +157,9 @@ Each work order lists: heading link, scope (files it may touch), deliverable and
 - Entity and domain for any public surface (`indianacle.com` is recorded as Cloudflare-managed).
 - Which of the tools beyond Claude Code to trial first (suggest Codex as reviewer on one PR).
 
-## 14. Not authorized by this document
+## 14. Idea log
+See `docs/IDEAS.md` (annotation web; funded digitization; a case-number-based universal citation; memorandum detection). Ideas are not plans.
+
+## 15. Not authorized by this document
 
 Hosting, publication, DNS or domain work, connector registration or directory submission, third-party messages, accounts, credentials, licenses, merging, creating issues or work orders, and dispatching any tool.
