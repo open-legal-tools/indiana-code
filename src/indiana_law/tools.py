@@ -28,9 +28,17 @@ def _citation(section_id):
     return f"IC {section_id}"
 
 
-def _fts_query(q):
-    words = re.findall(r"[\w.]+", q)
-    return " ".join('"%s"' % w.replace('"', "") for w in words)
+_STOP = {"a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "is", "are", "be", "by", "does", "do", "what", "when", "if", "any", "with", "as", "at", "from", "that", "this", "it", "under", "who", "which", "how"}
+
+
+def _words(q):
+    return [w for w in re.findall(r"[\w.]+", q.replace('"', " ")) if w]
+
+
+def _fts_query(q, mode="all"):
+    """mode 'all' requires every word (stop words dropped); mode 'any' ranks sections that match any of the words."""
+    words = [w for w in _words(q) if w.lower() not in _STOP] or _words(q)
+    return (" OR " if mode == "any" else " ").join('"%s"' % w for w in words)
 
 
 def search(conn, query, as_of=None, title=None, limit=10):
@@ -47,30 +55,35 @@ def search(conn, query, as_of=None, title=None, limit=10):
             flags.append("search is run on the whole snapshot for that year; use get_section with as_of for exact text")
         else:
             flags.append("no snapshot for that date; searched the latest snapshot")
-    q = _fts_query(query)
     out = {"query": query, "results": [], "flags": flags, **_assurance(conn, snap)}
-    if not q:
+    if not _words(query):
         flags.append("empty query")
         return out
     sql = ("SELECT v.base_id, v.id, v.version_suffix, a.heading, snippet(section_fts, 0, '[', ']', '...', 24) AS snip, bm25(section_fts) AS score "
            "FROM section_fts JOIN section_version v ON v.vid=section_fts.rowid JOIN appearance a ON a.vid=v.vid "
            "WHERE section_fts MATCH ? AND a.snapshot_id=? ")
-    args = [q, snap["snapshot_id"]]
+    tail = ""
+    base_args = [snap["snapshot_id"]]
     if title:
-        sql += "AND a.title_id=? "
-        args.append(str(title))
-    sql += "ORDER BY score LIMIT ?"
-    args.append(limit * 3)
-    seen = set()
-    for r in conn.execute(sql, args):
-        if r["base_id"] in seen:
-            continue
-        seen.add(r["base_id"])
-        out["results"].append({"section_id": r["base_id"], "citation": _citation(r["base_id"]), "heading": r["heading"], "snippet": r["snip"]})
-        if len(out["results"]) >= limit:
+        tail += "AND a.title_id=? "
+        base_args.append(str(title))
+    tail += "ORDER BY score LIMIT ?"
+    for mode in ("all", "any"):
+        args = [_fts_query(query, mode)] + base_args + [limit * 3]
+        seen = set()
+        for r in conn.execute(sql + tail, args):
+            if r["base_id"] in seen:
+                continue
+            seen.add(r["base_id"])
+            out["results"].append({"section_id": r["base_id"], "citation": _citation(r["base_id"]), "heading": r["heading"], "snippet": r["snip"]})
+            if len(out["results"]) >= limit:
+                break
+        if out["results"]:
+            if mode == "any":
+                flags.append("no section contained every word; results match some of the words, ranked by relevance")
             break
     if not out["results"]:
-        flags.append("no matches; try fewer or different words, or browse by title")
+        flags.append("no matches; try other words or browse by title (ic_browse)")
     return out
 
 

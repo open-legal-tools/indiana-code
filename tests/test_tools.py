@@ -69,3 +69,11 @@ def test_server_call_returns_structured_content(mini):
     content, structured = asyncio.run(mcp.call_tool("ic_get_section", {"section_id": "2-5-36-1", "as_of": "2026-09-01"}))
     assert structured["found"] is True and structured["unofficial"] is True
     assert content and "2-5-36-1" in content[0].text
+
+
+def test_search_falls_back_to_any_word(mini):
+    r = tools.search(mini, "commission quarterly xylophone")
+    assert r["results"] and any("some of the words" in f for f in r["flags"])
+    r2 = tools.search(mini, "commission quarterly")
+    assert not any("some of the words" in f for f in r2["flags"])
+    assert not tools.search(mini, "xylophone zebra")["results"]
