@@ -82,6 +82,8 @@ Law should be accessible. Serving text with search treats users — attorneys an
 Read first: `docs/DESIGN-schema-v1.md` (data model), `docs/SPEC-ROADMAP-v2.md` (scope, phases, who does what), `docs/EVAL-plan-v1.md`.
 Rules that matter: official text stays verbatim; everything we add is stored apart with provenance; no look-alike of an official citator; raw data under `data/` is read-only for agents; work orders return draft PRs only. `ROADMAP.md` and `SPEC.md` predate this and are historical.
 
+---
+
 ## Director
 
 Ventures Director — reports to the Captain.
