@@ -41,6 +41,14 @@ Each question is run 3 times per condition to see variance. Record the store's S
 - **Automatic checks:** every section id cited exists in the store; every quoted passage appears in the cited section's text at the date
   claimed; tokens, tool calls and wall time from the run logs.
 
+## Low-effort mode (Danielle has little time, 2026-10-10)
+- **Draft key by Claude, check by Danielle.** For questions answerable from statute text (1, 4, 6, 7, 8, 9, 10) the key is derived from the loaded
+  statute text and act clauses and shown as a one-page list of "question, expected answer, authority"; Danielle only marks each line agree,
+  disagree or unsure (about ten minutes). For questions 2, 3 and 5 the draft lists the likely authorities as unverified and she marks them the same way.
+- **Grade disagreements only.** Automatic checks run on every answer; Danielle blind-grades only the answers where conditions disagree with each other
+  or with the key, plus any answer flagged for an invented or unsupported authority.
+- **Pilot first.** One question run once per condition to check mechanics and cost before the full set.
+
 ## Mechanics (to confirm before running)
 - Run non-interactively with Claude Code's print mode (`claude -p`, JSON output, `--allowedTools`, `--mcp-config`); this uses Danielle's
   subscription and may need her to renew the CLI login. Alternative: run by hand in Claude Desktop with the connector toggled.
