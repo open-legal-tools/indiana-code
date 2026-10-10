@@ -38,13 +38,13 @@ Related brands:
 
 | Source | Format | URL |
 |--------|--------|-----|
-| Indiana Code | REST API (JSON) | api.iga.in.gov — free token, official |
+| Indiana Code | annual HTML download (ZIP), one file per title | iga.in.gov/laws/ic/downloads — official; the API is not used |
 | Indiana Appellate Opinions | S3 bulk CSV + REST API | CourtListener (ind, indctapp, indtc) |
 | Indiana Administrative Code | TBD (HTML or XML) | in.gov |
 | Indiana Court Rules | PDF/HTML | in.gov/courts |
 
-Indiana Code via IGA public REST API. Token: email apitoken.request@iga.in.gov.
-Opinions via CourtListener S3 bulk data (bootstrap) + daily API sync. Public domain.
+Indiana Code from the annual HTML download (ten snapshots, 2017 to 2026, are parsed); act clauses from each year's Acts PDF. No IGA API token is used (its license restricts caching and reformatting).
+Opinions via CourtListener quarterly bulk files (public domain mark), with an optional API top-up for new opinions. See docs/SPEC-ROADMAP-v2.md.
 
 ---
 
@@ -77,20 +77,10 @@ Law should be accessible. Serving text with search treats users — attorneys an
 
 ## Current Status
 
-**Phase 0 — Validate** *(started October 2026)*
+**Schema v1 built locally** (branch `add-schema-v1`, draft PR #1). Done: parser, act-clause parser, versions store, as-of resolver, local stdio MCP server (six tools), title-to-SALI mapping, 34 tests. Not done: opinions in the store, section-level tags, relationship web, evaluation run, hosting or publication.
 
-Active work items:
-- [ ] Confirm IGA XML availability and download format
-- [ ] Parse one sample title (XML → SQLite FTS5 proof of concept)
-- [ ] Stand up minimal MCP server and test with case-reader
-- [ ] Decide domain structure (one site vs subdomains for CLE)
-- [ ] Assess openlegaltools.org disposition
-
-See `ROADMAP.md` for full phase plan and success criteria.
-
-Phase 1 (Indiana Code MVP) begins when Phase 0 validation is complete.
-
----
+Read first: `docs/DESIGN-schema-v1.md` (data model), `docs/SPEC-ROADMAP-v2.md` (scope, phases, who does what), `docs/EVAL-plan-v1.md`.
+Rules that matter: official text stays verbatim; everything we add is stored apart with provenance; no look-alike of an official citator; raw data under `data/` is read-only for agents; work orders return draft PRs only. `ROADMAP.md` and `SPEC.md` predate this and are historical.
 
 ## Director
 
