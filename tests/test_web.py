@@ -8,6 +8,8 @@ def test_landing_and_terms_copy():
     landing = web.landing_html()
     terms = web.terms_html()
     assert "Unofficial" in landing and "https://mcp.indianacle.com/mcp" in landing
+    assert "406" in landing and "Not Acceptable" in landing
+    assert "background: #f4efe6" in landing
     assert "not legal advice" in terms.lower()
     assert "2018" in terms
 
