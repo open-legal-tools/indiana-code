@@ -23,6 +23,8 @@ is not wired to any database. Use `python -m indiana_law.mcp_server`.
 | `ic_list_companion` | Constitution / Non-code / Acts / archive PDFs (when loaded) |
 | `ic_search_companion` | Full-text search of those companion PDFs |
 | `ic_get_companion` | One page of a companion PDF |
+| `case_search` | Indiana appellate clusters (CourtListener extract; metadata-heavy) |
+| `case_get` | One cluster, with opinion text only when the extract has a body |
 
 Every answer includes `unofficial`, snapshot, dates, flags, and a disclaimer.
 
@@ -98,8 +100,9 @@ INDIANA_LAW_TRANSPORT=streamable-http INDIANA_LAW_PORT=8765 \
   python -m indiana_law.mcp_server
 ```
 
-A public URL (`mcp.indianacle.com`) is proposed, not deployed. See
-[docs/DEPLOY.md](docs/DEPLOY.md).
+Hosted streamable HTTP (unofficial; not legal advice):
+`https://mcp.indianacle.com/mcp`. Landing and terms are on `/` and `/terms`.
+See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Source
 

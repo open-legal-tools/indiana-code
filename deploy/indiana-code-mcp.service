@@ -1,0 +1,20 @@
+[Unit]
+Description=Indiana Code MCP (streamable HTTP on loopback)
+After=network.target
+
+[Service]
+Type=simple
+User=transcribe
+Group=transcribe
+WorkingDirectory=/home/transcribe/indiana-code
+Environment=INDIANA_LAW_DB=/home/transcribe/indiana-code/data/store/indiana-code.db
+Environment=INDIANA_LAW_TRANSPORT=streamable-http
+Environment=INDIANA_LAW_HOST=127.0.0.1
+Environment=INDIANA_LAW_PORT=8765
+Environment=INDIANA_LAW_PUBLIC_HOST=mcp.indianacle.com
+ExecStart=/home/transcribe/indiana-code/.venv/bin/python -m indiana_law.mcp_server --http
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

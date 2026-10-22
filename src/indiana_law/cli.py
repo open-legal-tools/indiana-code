@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-from . import PARSER_VERSION, acts, companion, parse_code, store
+from . import PARSER_VERSION, acts, caselaw, companion, parse_code, store
 
 
 def main(argv=None) -> int:
@@ -23,9 +23,14 @@ def main(argv=None) -> int:
     d.add_argument("db")
     d.add_argument("--zip", action="append", default=[], dest="zips", help="Official HTML zip containing Additional_Documents_PDF")
     d.add_argument("--pdf", action="append", default=[], dest="pdfs", help="A single companion or archive-title PDF")
+    d.add_argument("--pdf-dir", action="append", default=[], dest="pdf_dirs", help="Directory of companion or archive-title PDFs")
     d.add_argument("--year", type=int, default=None)
     d.add_argument("--kind", default=None, help="constitution, noncode, acts, or archive_title")
     d.add_argument("--extract-dir", default="data/companion")
+    e = sub.add_parser("ingest-caselaw", help="Index the local CourtListener Indiana extract")
+    e.add_argument("db")
+    e.add_argument("--clusters", required=True)
+    e.add_argument("--opinions", required=True)
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -48,13 +53,26 @@ def main(argv=None) -> int:
                 added = store.add_companion_pages(conn, pages)
                 print(pdf, added)
                 n += added
-        for pdf in args.pdfs:
+        pdfs = list(args.pdfs)
+        for d in args.pdf_dirs:
+            pdfs.extend(sorted(
+                os.path.join(d, name) for name in os.listdir(d)
+                if name.lower().endswith(".pdf")
+            ))
+        for pdf in pdfs:
             pages = companion.pages_from_pdf(pdf, kind=args.kind, year=args.year)
             added = store.add_companion_pages(conn, pages)
             print(pdf, added)
             n += added
         store.finalize_companion(conn)
         print("companion pages:", n)
+    elif args.cmd == "ingest-caselaw":
+        conn = store.connect(args.db)
+        opinions = caselaw.load_opinions(args.opinions)
+        n = store.add_case_clusters(conn, caselaw.cluster_records(args.clusters, opinions))
+        store.finalize_cases(conn)
+        with_text = conn.execute("SELECT count(*) FROM case_cluster WHERE has_opinion_text=1").fetchone()[0]
+        print(f"case clusters: {n}; with opinion text: {with_text}")
     else:
         conn = store.connect(args.db)
         for spec in args.snapshot:

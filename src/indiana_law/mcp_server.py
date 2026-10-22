@@ -8,9 +8,12 @@ import sys
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, JSONResponse
 
-from . import tools
+from . import tools, web
 
 INSTRUCTIONS = (
     "Dated, unofficial copies of the Indiana Code from the General Assembly's annual downloads (2017 to 2026), with effective-dated "
@@ -18,7 +21,8 @@ INSTRUCTIONS = (
     "such as '7.1-1-1-1' are normal). Use ic_search to find sections, ic_resolve_citation for citation strings, ic_get_section for text "
     "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
     "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
-    "ic_search_companion and ic_get_companion when loaded. Every answer includes its snapshot, dates and flags. Always show the user "
+    "ic_search_companion and ic_get_companion when loaded. Indiana appellate clusters from a CourtListener bulk extract "
+    "use case_search and case_get; most clusters have metadata only, not a full opinion body. Every answer includes its snapshot, dates and flags. Always show the user "
     "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 
@@ -32,17 +36,54 @@ def _connect():
     return conn
 
 
+def _transport_security(public_host: str) -> TransportSecuritySettings:
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            "127.0.0.1",
+            "127.0.0.1:*",
+            "localhost",
+            "localhost:*",
+            "[::1]",
+            "[::1]:*",
+            public_host,
+            f"{public_host}:*",
+        ],
+        allowed_origins=[
+            "http://127.0.0.1:*",
+            "http://localhost:*",
+            "http://[::1]:*",
+            f"https://{public_host}",
+        ],
+    )
+
+
 def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
+    public_host = os.environ.get("INDIANA_LAW_PUBLIC_HOST", "mcp.indianacle.com")
     mcp = FastMCP(
         "indiana-code",
         instructions=INSTRUCTIONS,
+        website_url=f"https://{public_host}",
         host=host,
         port=port,
         stateless_http=True,
         json_response=True,
+        transport_security=_transport_security(public_host),
     )
     db = conn or _connect()
     ro = dict(readOnlyHint=True, idempotentHint=True, openWorldHint=False, destructiveHint=False)
+
+    @mcp.custom_route("/", methods=["GET"], name="landing")
+    async def landing(_request: Request) -> HTMLResponse:
+        return HTMLResponse(web.landing_html())
+
+    @mcp.custom_route("/terms", methods=["GET"], name="terms")
+    async def terms(_request: Request) -> HTMLResponse:
+        return HTMLResponse(web.terms_html())
+
+    @mcp.custom_route("/health", methods=["GET"], name="health")
+    async def health(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True, "service": "indiana-code", "unofficial": True})
 
     @mcp.tool(title="Search Indiana Code", annotations=ToolAnnotations(title="Search Indiana Code", **ro))
     def ic_search(query: str, as_of: str | None = None, title: str | None = None, limit: int = 10) -> dict[str, Any]:
@@ -92,6 +133,16 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
     def ic_get_companion(doc_id: str, page: int = 1) -> dict[str, Any]:
         """One page of a companion document (doc_id like 'constitution-2026' or 'acts-2026'). Pages are 1-based."""
         return tools.get_companion(db, doc_id, page)
+
+    @mcp.tool(title="Search Indiana cases", annotations=ToolAnnotations(title="Search Indiana cases", **ro))
+    def case_search(query: str, court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 10) -> dict[str, Any]:
+        """Search Indiana Supreme Court, Court of Appeals, and Tax Court clusters from a CourtListener extract. court is ind, indctapp, or indtc. Most hits are metadata only."""
+        return tools.search_cases(db, query, court, after, before, limit)
+
+    @mcp.tool(title="Get an Indiana case cluster", annotations=ToolAnnotations(title="Get an Indiana case cluster", **ro))
+    def case_get(cluster_id: str) -> dict[str, Any]:
+        """One Indiana opinion cluster by CourtListener cluster id. Includes opinion text only when the extract has a body."""
+        return tools.get_case(db, cluster_id)
 
     return mcp
 

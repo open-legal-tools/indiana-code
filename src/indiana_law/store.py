@@ -37,12 +37,23 @@ CREATE TABLE IF NOT EXISTS companion_page(
   page INTEGER NOT NULL, text TEXT NOT NULL,
   UNIQUE(doc_id, page));
 CREATE INDEX IF NOT EXISTS ix_comp_kind ON companion_page(kind, year);
+CREATE TABLE IF NOT EXISTS case_cluster(
+  cluster_id TEXT PRIMARY KEY,
+  court_id TEXT, court TEXT, case_name TEXT, date_filed TEXT, docket_id TEXT,
+  precedential_status TEXT, slug TEXT, citation_count INTEGER,
+  summary TEXT, headmatter TEXT, opinion_id TEXT, opinion_text TEXT,
+  text_source TEXT, has_opinion_text INTEGER NOT NULL DEFAULT 0,
+  search_text TEXT);
+CREATE INDEX IF NOT EXISTS ix_case_court ON case_cluster(court_id, date_filed);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
 """
 COMPANION_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS companion_fts USING fts5(text, content='companion_page', content_rowid='pid', tokenize='porter unicode61');
+"""
+CASE_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS case_fts USING fts5(search_text, content='case_cluster', content_rowid='rowid', tokenize='porter unicode61');
 """
 
 
@@ -112,6 +123,30 @@ def finalize(conn) -> None:
 def finalize_companion(conn) -> None:
     conn.executescript(COMPANION_FTS)
     conn.execute("INSERT INTO companion_fts(companion_fts) VALUES('rebuild')")
+    conn.commit()
+
+
+def add_case_clusters(conn, records) -> int:
+    n = 0
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_cluster VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            (
+                r["cluster_id"], r["court_id"], r["court"], r["case_name"], r["date_filed"],
+                r["docket_id"], r["precedential_status"], r["slug"], r["citation_count"],
+                r["summary"], r["headmatter"], r["opinion_id"], r["opinion_text"],
+                r["text_source"], r["has_opinion_text"], r["search_text"],
+            )
+            for r in records
+        ),
+    )
+    n = conn.execute("SELECT count(*) FROM case_cluster").fetchone()[0]
+    return n
+
+
+def finalize_cases(conn) -> None:
+    conn.executescript(CASE_FTS)
+    conn.execute("INSERT INTO case_fts(case_fts) VALUES('rebuild')")
     conn.commit()
 
 

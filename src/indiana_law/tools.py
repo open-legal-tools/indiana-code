@@ -6,6 +6,7 @@ import sqlite3
 
 from . import asof
 from .asof import DISCLAIMER
+from .caselaw import COURTS, SOURCE as CASE_SOURCE
 
 SOURCE_PAGE = "https://iga.in.gov/laws/ic/downloads"
 
@@ -277,4 +278,99 @@ def get_companion(conn, doc_id, page=1):
     else:
         out["flags"] = ["companion page not found"]
         out["page_count"] = total
+    return out
+
+
+def _has_cases(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_cluster'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_cluster LIMIT 1").fetchone() is not None
+
+
+def _case_flags(row) -> list[str]:
+    flags = ["unofficial CourtListener extract; not a citator; not legal advice"]
+    if not row["has_opinion_text"]:
+        flags.append("no opinion body in this extract; cluster metadata only")
+    return flags
+
+
+def search_cases(conn, query, court=None, after=None, before=None, limit=10):
+    """Search Indiana opinion clusters (Supreme Court, Court of Appeals, Tax Court)."""
+    limit = max(1, min(int(limit), 25))
+    out = {"query": query, "results": [], "source": CASE_SOURCE, **_assurance(conn)}
+    if not _has_cases(conn):
+        out["flags"] = ["no caselaw loaded"]
+        return out
+    if not _words(query):
+        out["flags"] = ["empty query"]
+        return out
+    fts = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_fts'").fetchone()
+    if not fts:
+        out["flags"] = ["case_fts index missing; rebuild with indiana_law.cli ingest-caselaw"]
+        return out
+    sql = (
+        "SELECT c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, c.precedential_status, "
+        "c.has_opinion_text, snippet(case_fts, 0, '[', ']', '...', 24) AS snip "
+        "FROM case_fts JOIN case_cluster c ON c.rowid=case_fts.rowid WHERE case_fts MATCH ?"
+    )
+    args: list = [_fts_query(query, "all")]
+    if court:
+        sql += " AND c.court_id=?"
+        args.append(court if court in COURTS else court)
+    if after:
+        sql += " AND c.date_filed>=?"
+        args.append(after)
+    if before:
+        sql += " AND c.date_filed<=?"
+        args.append(before)
+    sql += " LIMIT ?"
+    args.append(limit)
+    try:
+        rows = list(conn.execute(sql, args))
+    except sqlite3.OperationalError:
+        rows = []
+    if not rows:
+        args[0] = _fts_query(query, "any")
+        rows = list(conn.execute(sql, args))
+        if rows:
+            out.setdefault("flags", []).append("no cluster contained every word; results match some of the words")
+    out["results"] = [{
+        "cluster_id": r["cluster_id"], "court": r["court"], "court_id": r["court_id"],
+        "case_name": r["case_name"], "date_filed": r["date_filed"],
+        "precedential_status": r["precedential_status"],
+        "has_opinion_text": bool(r["has_opinion_text"]), "snippet": r["snip"],
+    } for r in rows]
+    if not out["results"]:
+        out.setdefault("flags", []).append("no caselaw matches")
+    out.setdefault("flags", []).append("most Indiana clusters have no opinion body in the CourtListener opinions CSV")
+    return out
+
+
+def get_case(conn, cluster_id):
+    """One Indiana opinion cluster, with opinion text when the extract has it."""
+    out = {"cluster_id": cluster_id, "found": False, "source": CASE_SOURCE, **_assurance(conn)}
+    if not _has_cases(conn):
+        out["flags"] = ["no caselaw loaded"]
+        return out
+    row = conn.execute("SELECT * FROM case_cluster WHERE cluster_id=?", (str(cluster_id),)).fetchone()
+    if not row:
+        out["flags"] = ["cluster not found"]
+        return out
+    out.update(
+        found=True,
+        court=row["court"],
+        court_id=row["court_id"],
+        case_name=row["case_name"],
+        date_filed=row["date_filed"],
+        docket_id=row["docket_id"],
+        precedential_status=row["precedential_status"],
+        slug=row["slug"],
+        citation_count=row["citation_count"],
+        summary=row["summary"],
+        headmatter=row["headmatter"],
+        has_opinion_text=bool(row["has_opinion_text"]),
+        text_source=row["text_source"],
+        text=row["opinion_text"],
+        url=f"https://www.courtlistener.com/opinion/{row['cluster_id']}/{row['slug']}/" if row["slug"] else CASE_SOURCE,
+        flags=_case_flags(row),
+    )
     return out

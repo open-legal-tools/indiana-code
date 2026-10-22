@@ -15,6 +15,7 @@ def post(payload):
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
+            "User-Agent": "indiana-code-smoke/0.1",
         },
         method="POST",
     )

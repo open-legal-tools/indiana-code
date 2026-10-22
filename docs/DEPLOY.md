@@ -1,8 +1,10 @@
 # Hosted MCP (streamable HTTP)
 
-The same package can speak Streamable HTTP. Standing up a public URL, changing
-DNS, or opening a port on the farm still needs Danielle's approval. This file
-is the runbook, not authorization.
+Authorized 2026-10-22: stand up `https://mcp.indianacle.com` on farm
+`worker-01`, loopback only, dedicated Cloudflare tunnel. Do not open a new
+public farm port. Do not reuse another tunnel's token.
+
+Unofficial; not legal advice.
 
 ## Local check (no DNS)
 
@@ -11,12 +13,12 @@ export INDIANA_LAW_DB=/absolute/path/to/indiana-code.db
 export INDIANA_LAW_TRANSPORT=streamable-http
 export INDIANA_LAW_HOST=127.0.0.1
 export INDIANA_LAW_PORT=8765
-PYTHONPATH=src python -m indiana_law.mcp_server
+PYTHONPATH=src python -m indiana_law.mcp_server --http
 ```
 
-The MCP endpoint is `http://127.0.0.1:8765/mcp`.
-
-Cursor / Claude (remote URL, once a host exists):
+- Landing: `http://127.0.0.1:8765/`
+- Terms: `http://127.0.0.1:8765/terms`
+- MCP: `http://127.0.0.1:8765/mcp`
 
 ```json
 {
@@ -28,16 +30,17 @@ Cursor / Claude (remote URL, once a host exists):
 }
 ```
 
-## Proposed public host
+## worker-01 layout
 
-- Process: this package, streamable HTTP, read-only SQLite
-- Machine: a small always-on box (farm node or VPS). A Cloudflare Worker is a
-  poor fit for a 512 MB database.
-- Name: `mcp.indianacle.com` (Cloudflare DNS on the already-owned zone)
-- Do not wait on `openlegaltools.com`
+- Code + venv + store: `/home/transcribe/indiana-code`
+- Tunnel config (no other farm tunnels): `~/.config/indiana-code/cloudflared.yml`
+- Units: `deploy/indiana-code-mcp.service`, `deploy/cloudflared-indiana-code.service`
+- Process binds `127.0.0.1:8765`. cloudflared rewrites `Host` to `127.0.0.1`.
 
-Local HTTP was verified on 2026-10-21: `initialize` and `tools/list` returned
-HTTP 200 at `http://127.0.0.1:8765/mcp`. That is not a public deployment.
+## Checks
 
-Until DNS and the host are approved, run stdio locally from the README. Do not
-create a Cloudflare record or open a farm port from this file.
+```bash
+curl -sS http://127.0.0.1:8765/health
+curl -sS -o /dev/null -w '%{http_code}\n' https://mcp.indianacle.com/
+INDIANA_LAW_DB=/path/to/indiana-code.db python scripts/smoke_http.py https://mcp.indianacle.com/mcp
+```

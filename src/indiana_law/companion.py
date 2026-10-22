@@ -57,15 +57,15 @@ def doc_id(kind: str, year: int | None, filename: str) -> str:
     return stem
 
 
-def extract_additional_from_zip(zip_path: str, dest_dir: str) -> list[str]:
-    """Extract Additional_Documents_PDF members from an official HTML zip."""
+def extract_pdfs_from_zip(zip_path: str, dest_dir: str, required_substring: str | None = None) -> list[str]:
+    """Extract PDF members from an official IGA zip into dest_dir (basename only)."""
     os.makedirs(dest_dir, exist_ok=True)
     written: list[str] = []
     with zipfile.ZipFile(zip_path) as zf:
         for info in zf.infolist():
             if info.is_dir() or "__MACOSX" in info.filename:
                 continue
-            if "Additional_Documents_PDF" not in info.filename:
+            if required_substring and required_substring not in info.filename:
                 continue
             if not info.filename.lower().endswith(".pdf"):
                 continue
@@ -73,6 +73,26 @@ def extract_additional_from_zip(zip_path: str, dest_dir: str) -> list[str]:
             with zf.open(info) as src, open(target, "wb") as fh:
                 fh.write(src.read())
             written.append(target)
+    return written
+
+
+def extract_additional_from_zip(zip_path: str, dest_dir: str) -> list[str]:
+    """Extract Additional_Documents_PDF members from an official HTML zip."""
+    return extract_pdfs_from_zip(zip_path, dest_dir, required_substring="Additional_Documents_PDF")
+
+
+def extract_archive_titles_from_zip(zip_path: str, dest_dir: str) -> list[str]:
+    """Extract archive PDFs. Prefer Title/TITLE*.pdf when the zip has them."""
+    written = extract_pdfs_from_zip(zip_path, dest_dir)
+    titles = [p for p in written if Path(p).name.lower().startswith("title")]
+    if titles:
+        extras = [p for p in written if p not in titles]
+        for path in extras:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        return titles
     return written
 
 
