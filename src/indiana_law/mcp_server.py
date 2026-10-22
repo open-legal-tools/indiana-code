@@ -16,8 +16,10 @@ INSTRUCTIONS = (
     "Dated, unofficial copies of the Indiana Code from the General Assembly's annual downloads (2017 to 2026), with effective-dated "
     "versions and the acts that amended each section. Section ids look like '31-16-15-25' (title-article-chapter-section; decimals "
     "such as '7.1-1-1-1' are normal). Use ic_search to find sections, ic_resolve_citation for citation strings, ic_get_section for text "
-    "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Every answer includes "
-    "its snapshot, dates and flags. Always show the user the source date and say the copy is unofficial; this tool provides no legal advice."
+    "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
+    "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
+    "ic_search_companion and ic_get_companion when loaded. Every answer includes its snapshot, dates and flags. Always show the user "
+    "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 
 
@@ -30,8 +32,15 @@ def _connect():
     return conn
 
 
-def build_server(conn=None):
-    mcp = FastMCP("indiana-code", instructions=INSTRUCTIONS)
+def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
+    mcp = FastMCP(
+        "indiana-code",
+        instructions=INSTRUCTIONS,
+        host=host,
+        port=port,
+        stateless_http=True,
+        json_response=True,
+    )
     db = conn or _connect()
     ro = dict(readOnlyHint=True, idempotentHint=True, openWorldHint=False, destructiveHint=False)
 
@@ -69,11 +78,34 @@ def build_server(conn=None):
         """The Code sections an act amended, added or repealed, with effective dates. act_id like 'P.L.98-2026' (loaded for 2017 and 2019 to 2026). Long acts are paged with limit and offset."""
         return tools.get_act(db, act_id, limit, offset)
 
+    @mcp.tool(title="List companion IGA documents", annotations=ToolAnnotations(title="List companion IGA documents", **ro))
+    def ic_list_companion(kind: str | None = None, year: int | None = None) -> dict[str, Any]:
+        """List Constitution, Non-code, full Acts, and archive-title PDFs loaded from the IGA downloads page. kind is constitution, noncode, acts, or archive_title."""
+        return tools.list_companion(db, kind, year)
+
+    @mcp.tool(title="Search companion IGA documents", annotations=ToolAnnotations(title="Search companion IGA documents", **ro))
+    def ic_search_companion(query: str, kind: str | None = None, year: int | None = None, limit: int = 10) -> dict[str, Any]:
+        """Full-text search of companion PDFs (Constitution, Non-code statutes, full Acts text, archive titles). Use ic_get_companion for a page."""
+        return tools.search_companion(db, query, kind, year, limit)
+
+    @mcp.tool(title="Get a companion document page", annotations=ToolAnnotations(title="Get a companion document page", **ro))
+    def ic_get_companion(doc_id: str, page: int = 1) -> dict[str, Any]:
+        """One page of a companion document (doc_id like 'constitution-2026' or 'acts-2026'). Pages are 1-based."""
+        return tools.get_companion(db, doc_id, page)
+
     return mcp
 
 
-def main():
-    build_server().run()
+def main(argv: list[str] | None = None) -> None:
+    args = list(argv if argv is not None else sys.argv[1:])
+    transport = os.environ.get("INDIANA_LAW_TRANSPORT", "stdio")
+    if "--http" in args:
+        transport = "streamable-http"
+    host = os.environ.get("INDIANA_LAW_HOST", "127.0.0.1")
+    port = int(os.environ.get("INDIANA_LAW_PORT", "8765"))
+    if transport not in {"stdio", "streamable-http", "sse"}:
+        sys.exit(f"Unknown INDIANA_LAW_TRANSPORT={transport!r} (use stdio or streamable-http)")
+    build_server(host=host, port=port).run(transport=transport)
 
 
 if __name__ == "__main__":

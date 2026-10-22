@@ -57,7 +57,10 @@ def test_server_lists_read_only_tools_with_schemas(mini):
     mcp = build_server(mini)
     listed = asyncio.run(mcp.list_tools())
     names = {t.name for t in listed}
-    assert names == {"ic_search", "ic_resolve_citation", "ic_get_section", "ic_get_versions", "ic_browse", "ic_get_act"}
+    assert names == {
+        "ic_search", "ic_resolve_citation", "ic_get_section", "ic_get_versions", "ic_browse", "ic_get_act",
+        "ic_list_companion", "ic_search_companion", "ic_get_companion",
+    }
     for t in listed:
         assert t.title and t.annotations.readOnlyHint is True and t.annotations.openWorldHint is False
         assert t.inputSchema and len(t.name) <= 64
@@ -77,3 +80,26 @@ def test_search_falls_back_to_any_word(mini):
     r2 = tools.search(mini, "commission quarterly")
     assert not any("some of the words" in f for f in r2["flags"])
     assert not tools.search(mini, "xylophone zebra")["results"]
+
+
+def test_companion_empty_store(mini):
+    empty = tools.list_companion(mini)
+    assert empty["documents"] == [] and empty["flags"]
+
+
+def test_companion_search_and_get(mini):
+    from indiana_law import store
+    pages = [
+        {"doc_id": "constitution-2026", "kind": "constitution", "year": 2026, "title": "Indiana Constitution (2026)",
+         "source_file": "Indiana_Constitution.pdf", "page": 1, "text": "We the People of the State of Indiana bill of rights"},
+        {"doc_id": "noncode-2026", "kind": "noncode", "year": 2026, "title": "Non-code (2026)",
+         "source_file": "2026_Noncode_Statutes.pdf", "page": 1, "text": "A special appropriation for a named county bridge"},
+    ]
+    store.add_companion_pages(mini, pages)
+    store.finalize_companion(mini)
+    listed = tools.list_companion(mini, kind="constitution")
+    assert listed["documents"][0]["doc_id"] == "constitution-2026"
+    hits = tools.search_companion(mini, "bill of rights")
+    assert hits["results"] and hits["results"][0]["doc_id"] == "constitution-2026"
+    page = tools.get_companion(mini, "constitution-2026", 1)
+    assert page["found"] and "Indiana" in page["text"]

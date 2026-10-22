@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
-from . import PARSER_VERSION, acts, parse_code, store
+from . import PARSER_VERSION, acts, companion, parse_code, store
 
 
 def main(argv=None) -> int:
@@ -18,6 +19,13 @@ def main(argv=None) -> int:
     c = sub.add_parser("build-store", help="JSONL files -> SQLite store")
     c.add_argument("db"); c.add_argument("--snapshot", action="append", default=[], metavar="ID:YEAR:COMPILE_DATE:CERTAIN:JSONL")
     c.add_argument("--acts", action="append", default=[], metavar="JSONL")
+    d = sub.add_parser("ingest-companion", help="Extract and index Constitution / Non-code / Acts PDFs from official HTML zips")
+    d.add_argument("db")
+    d.add_argument("--zip", action="append", default=[], dest="zips", help="Official HTML zip containing Additional_Documents_PDF")
+    d.add_argument("--pdf", action="append", default=[], dest="pdfs", help="A single companion or archive-title PDF")
+    d.add_argument("--year", type=int, default=None)
+    d.add_argument("--kind", default=None, help="constitution, noncode, acts, or archive_title")
+    d.add_argument("--extract-dir", default="data/companion")
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -29,6 +37,24 @@ def main(argv=None) -> int:
             for r in recs:
                 fo.write(json.dumps(r) + "\n")
         print(f"{len(recs)} clause records -> {args.out_jsonl}")
+    elif args.cmd == "ingest-companion":
+        conn = store.connect(args.db)
+        n = 0
+        for zp in args.zips:
+            year = companion.year_from_path(zp, args.year)
+            dest = os.path.join(args.extract_dir, str(year or "unknown"))
+            for pdf in companion.extract_additional_from_zip(zp, dest):
+                pages = companion.pages_from_pdf(pdf, year=year)
+                added = store.add_companion_pages(conn, pages)
+                print(pdf, added)
+                n += added
+        for pdf in args.pdfs:
+            pages = companion.pages_from_pdf(pdf, kind=args.kind, year=args.year)
+            added = store.add_companion_pages(conn, pages)
+            print(pdf, added)
+            n += added
+        store.finalize_companion(conn)
+        print("companion pages:", n)
     else:
         conn = store.connect(args.db)
         for spec in args.snapshot:

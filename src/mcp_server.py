@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-"""
-Indiana Law MCP Server
+"""HISTORICAL. Unused by the working Code MCP.
 
-Exposes Indiana Code and Indiana appellate opinions as MCP tools.
-All data is served from a local SQLite database — no live internet
-calls at query time.
-
-Configure your MCP client to run:
-    python /path/to/indiana-law/src/mcp_server.py
-
-Optional env var:
-    INDIANA_LAW_DB=/path/to/indiana_law.db
+This nine-tool server queries data/indiana_law.db, which was never populated.
+Use:  INDIANA_LAW_DB=... python -m indiana_law.mcp_server
 """
 
 import asyncio

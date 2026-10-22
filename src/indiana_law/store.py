@@ -31,9 +31,18 @@ CREATE INDEX IF NOT EXISTS ix_app_title ON appearance(snapshot_id, title_id);
 CREATE INDEX IF NOT EXISTS ix_app_article ON appearance(snapshot_id, article_id);
 CREATE INDEX IF NOT EXISTS ix_app_chapter ON appearance(snapshot_id, chapter_id);
 CREATE INDEX IF NOT EXISTS ix_app_vid ON appearance(vid);
+CREATE TABLE IF NOT EXISTS companion_page(
+  pid INTEGER PRIMARY KEY AUTOINCREMENT,
+  doc_id TEXT NOT NULL, kind TEXT NOT NULL, year INTEGER, title TEXT, source_file TEXT,
+  page INTEGER NOT NULL, text TEXT NOT NULL,
+  UNIQUE(doc_id, page));
+CREATE INDEX IF NOT EXISTS ix_comp_kind ON companion_page(kind, year);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
+"""
+COMPANION_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS companion_fts USING fts5(text, content='companion_page', content_rowid='pid', tokenize='porter unicode61');
 """
 
 
@@ -83,10 +92,26 @@ def add_clauses(conn, clauses: Iterable[dict]) -> int:
     return n
 
 
+def add_companion_pages(conn, pages: Iterable[dict]) -> int:
+    n = 0
+    for p in pages:
+        conn.execute(
+            "INSERT OR REPLACE INTO companion_page(doc_id,kind,year,title,source_file,page,text) VALUES (?,?,?,?,?,?,?)",
+            (p["doc_id"], p["kind"], p.get("year"), p.get("title"), p.get("source_file"), p["page"], p["text"]))
+        n += 1
+    return n
+
+
 def finalize(conn) -> None:
     """Build the full-text index. Call after loading."""
     conn.executescript(FTS)
     conn.execute("INSERT INTO section_fts(section_fts) VALUES('rebuild')")
+    conn.commit()
+
+
+def finalize_companion(conn) -> None:
+    conn.executescript(COMPANION_FTS)
+    conn.execute("INSERT INTO companion_fts(companion_fts) VALUES('rebuild')")
     conn.commit()
 
 

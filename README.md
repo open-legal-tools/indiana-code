@@ -1,85 +1,107 @@
-# Indiana Law MCP
+# Indiana Code MCP
 
-Free, searchable Indiana law — as an MCP server.
+Dated, unofficial copies of the Indiana Code (2017–2026) as a local MCP
+server. Search, citation resolve, as-of text, version history, outline
+browse, and public-law clause lookup.
 
-Covers the Indiana Code and Indiana appellate court opinions (Supreme Court and Court of Appeals).
-All data served locally from SQLite. No API calls at query time.
+This is an access layer, not an official publication, and not legal advice.
+Verify every citation at [iga.in.gov](https://iga.in.gov/laws/ic/downloads).
 
-**8 tools:**
-- `search_indiana_code` — full-text search with BM25 ranking
-- `get_section` — retrieve IC XX-XX-XX-XX by citation
-- `list_titles` — browse the IC title index
-- `browse_chapter` — read a chapter in full
-- `search_indiana_opinions` — search Supreme Court and Court of Appeals opinions
-- `get_opinion` — retrieve full opinion text
-- `recent_indiana_opinions` — daily handdown review
-- `search_indiana_law` — unified search across code and opinions
-- `indiana_law_status` — database health check
+The older IGA-API / opinions server in `src/mcp_server.py` is historical and
+is not wired to any database. Use `python -m indiana_law.mcp_server`.
 
-Data sources: [Indiana General Assembly API](https://docs.api.iga.in.gov) (code), [CourtListener](https://courtlistener.com) (opinions).
-Every section links back to the official IGA source. This is an access layer, not a replacement.
+## Tools
 
----
+| Tool | What it does |
+| --- | --- |
+| `ic_search` | Full-text search (optional year / title) |
+| `ic_resolve_citation` | Pull IC citations out of free text |
+| `ic_get_section` | Section text as of a date |
+| `ic_get_versions` | Every loaded version of a section |
+| `ic_browse` | Titles → articles → chapters → sections |
+| `ic_get_act` | Code targets of a public law (`P.L.98-2026`) |
+| `ic_list_companion` | Constitution / Non-code / Acts / archive PDFs (when loaded) |
+| `ic_search_companion` | Full-text search of those companion PDFs |
+| `ic_get_companion` | One page of a companion PDF |
+
+Every answer includes `unofficial`, snapshot, dates, flags, and a disclaimer.
 
 ## Setup
 
 ```bash
-# 1. Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
-# 2. Set credentials
-cp .env.example ~/.indiana-law-env
-# Edit ~/.indiana-law-env — add IGA_API_TOKEN
-# Request free token: apitoken.request@iga.in.gov
-
-# 3. Bootstrap Indiana Code (runs ~3-4 hours, resumable)
-source ~/.indiana-law-env
-python scripts/bootstrap_code.py
-
-# 4. Bootstrap opinions (one-time, ~30 min)
-python scripts/bootstrap_opinions.py
-
-# 5. Test the MCP server
-python src/mcp_server.py
+# Point at a built store (this checkout already has one):
+export INDIANA_LAW_DB="$PWD/data/store/indiana-code.db"
 ```
 
-## MCP Client Configuration
+Rebuild from the official JSONL already on disk: [docs/REBUILD.md](docs/REBUILD.md).
+Coverage limits: [NOT_COVERED.md](NOT_COVERED.md).
 
-Add to your Claude Code MCP config (typically `~/.claude/mcp_config.json`):
+```bash
+python -m pytest tests
+INDIANA_LAW_DB=data/store/indiana-code.db python scripts/smoke_mcp.py
+```
+
+## Run the MCP server (stdio)
+
+```bash
+export INDIANA_LAW_DB=/absolute/path/to/indiana-code.db
+python -m indiana_law.mcp_server
+```
+
+### Cursor
+
+Add to `~/.cursor/mcp.json` (or the project MCP config):
 
 ```json
 {
   "mcpServers": {
-    "indiana-law": {
-      "command": "/Users/danielle/projects/indiana-law/.venv/bin/python",
-      "args": ["/Users/danielle/projects/indiana-law/src/mcp_server.py"],
+    "indiana-code": {
+      "command": "python",
+      "args": ["-m", "indiana_law.mcp_server"],
       "env": {
-        "INDIANA_LAW_DB": "/Users/danielle/projects/indiana-law/data/indiana_law.db"
+        "INDIANA_LAW_DB": "/absolute/path/to/indiana-code.db",
+        "PYTHONPATH": "/absolute/path/to/indiana-law/src"
       }
     }
   }
 }
 ```
 
-## Daily Sync
+If you installed the package into a venv, use that venv's `python` and you can
+drop `PYTHONPATH`.
 
-Keep opinions current with new handdowns:
+### Claude Desktop / Claude Code
 
-```bash
-# Add to crontab (runs at 6am daily alongside other stand-ups)
-0 6 * * * /Users/danielle/projects/indiana-law/scripts/daily_sync.sh
+```json
+{
+  "mcpServers": {
+    "indiana-code": {
+      "command": "python",
+      "args": ["-m", "indiana_law.mcp_server"],
+      "env": {
+        "INDIANA_LAW_DB": "/absolute/path/to/indiana-code.db",
+        "PYTHONPATH": "/absolute/path/to/indiana-law/src"
+      }
+    }
+  }
+}
 ```
 
-Free CourtListener tier (no API key): 125 calls/day — sufficient for Indiana-only daily sync.
-Paid tier ($10/mo): 600 calls/day.
+## Streamable HTTP (local)
 
-## Database
+```bash
+INDIANA_LAW_TRANSPORT=streamable-http INDIANA_LAW_PORT=8765 \
+  python -m indiana_law.mcp_server
+```
 
-SQLite at `data/indiana_law.db`. FTS5 virtual tables for full-text search with porter stemming.
-SALI LMSS doc_type taxonomy on opinions (same enum as case-reader).
+A public URL (`mcp.indianacle.com`) is proposed, not deployed. See
+[docs/DEPLOY.md](docs/DEPLOY.md).
 
-## Project
+## Source
 
-Part of the ITJD brand. See `~/projects/itjd/CLAUDE.md`.
+Annual HTML zips from the Indiana General Assembly. This project does not use
+the IGA API. Schema: [docs/DESIGN-schema-v1.md](docs/DESIGN-schema-v1.md).

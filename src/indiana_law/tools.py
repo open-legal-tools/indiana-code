@@ -195,3 +195,86 @@ def get_act(conn, act_id, limit=100, offset=0):
     else:
         out["flags"] = ["act not found; expected a form like 'P.L.98-2026' (acts are loaded for 2017 and 2019 to 2026)"]
     return out
+
+
+def _has_companion(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='companion_page'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM companion_page LIMIT 1").fetchone() is not None
+
+
+def list_companion(conn, kind=None, year=None):
+    """Companion documents loaded from the IGA downloads page (Constitution, Non-code, Acts text, archive titles)."""
+    out = {"documents": [], **_assurance(conn)}
+    if not _has_companion(conn):
+        out["flags"] = ["no companion documents loaded; Constitution, Non-code and full Acts PDFs are on the IGA downloads page"]
+        return out
+    sql = "SELECT doc_id, kind, year, title, source_file, max(page) AS pages FROM companion_page"
+    where, args = [], []
+    if kind:
+        where.append("kind=?"); args.append(kind)
+    if year:
+        where.append("year=?"); args.append(int(year))
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " GROUP BY doc_id ORDER BY year, kind, doc_id"
+    out["documents"] = [dict(r) for r in conn.execute(sql, args)]
+    return out
+
+
+def search_companion(conn, query, kind=None, year=None, limit=10):
+    """Full-text search of companion PDFs (Constitution, Non-code, full Acts, archive titles)."""
+    limit = max(1, min(int(limit), 25))
+    out = {"query": query, "results": [], **_assurance(conn)}
+    if not _has_companion(conn):
+        out["flags"] = ["no companion documents loaded"]
+        return out
+    if not _words(query):
+        out["flags"] = ["empty query"]
+        return out
+    fts = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='companion_fts'").fetchone()
+    if not fts:
+        out["flags"] = ["companion_fts index missing; rebuild with indiana_law.cli ingest-companion"]
+        return out
+    sql = ("SELECT c.doc_id, c.kind, c.year, c.title, c.page, snippet(companion_fts, 0, '[', ']', '...', 24) AS snip "
+           "FROM companion_fts JOIN companion_page c ON c.pid=companion_fts.rowid WHERE companion_fts MATCH ? ")
+    args: list = [_fts_query(query, "all")]
+    if kind:
+        sql += "AND c.kind=? "; args.append(kind)
+    if year:
+        sql += "AND c.year=? "; args.append(int(year))
+    sql += "LIMIT ?"
+    args.append(limit)
+    try:
+        rows = list(conn.execute(sql, args))
+    except sqlite3.OperationalError:
+        rows = []
+    if not rows:
+        args[0] = _fts_query(query, "any")
+        rows = list(conn.execute(sql, args))
+        if rows:
+            out.setdefault("flags", []).append("no page contained every word; results match some of the words")
+    out["results"] = [{"doc_id": r["doc_id"], "kind": r["kind"], "year": r["year"], "title": r["title"],
+                       "page": r["page"], "snippet": r["snip"]} for r in rows]
+    if not out["results"]:
+        out.setdefault("flags", []).append("no companion matches")
+    return out
+
+
+def get_companion(conn, doc_id, page=1):
+    """One page of a companion document. page is 1-based."""
+    out = {"doc_id": doc_id, "found": False, **_assurance(conn)}
+    if not _has_companion(conn):
+        out["flags"] = ["no companion documents loaded"]
+        return out
+    page = max(1, int(page))
+    row = conn.execute("SELECT * FROM companion_page WHERE doc_id=? AND page=?", (doc_id, page)).fetchone()
+    total = conn.execute("SELECT max(page) FROM companion_page WHERE doc_id=?", (doc_id,)).fetchone()[0]
+    if row:
+        out.update(found=True, kind=row["kind"], year=row["year"], title=row["title"],
+                   source_file=row["source_file"], page=row["page"], page_count=total, text=row["text"])
+        if total and page < total:
+            out["flags"] = [f"{total} pages; pass page={page + 1} for the next page"]
+    else:
+        out["flags"] = ["companion page not found"]
+        out["page_count"] = total
+    return out
