@@ -44,6 +44,12 @@ Mentions without an IC / Ind. Code prefix are not indexed. Structured Code
 resolution is only flagged when the opinion date is in a loaded snapshot year
 and the section id exists in the store.
 
+`cases_citing_case` / `cases_cited_in` is a text-mention index of reporter
+citations (N.E.2d / N.E.3d / Ind. / Ind. App. / Blackf.) and Rule 22 case
+numbers. Identifiers come from Harvard CAP metadata joined by cap id.
+Ambiguous table-page cites, *Id.*, *supra*, and Westlaw-only cites are not
+resolved. This is not KeyCite, not treatment, and not a good-law signal.
+
 `decision_form` / `citability` on case tools is a text classification of the
 slip opinion (memorandum vs opinion, App. R. 65(D) as a date rule). It is not
 the court’s official publication status. CourtListener `precedential_status`

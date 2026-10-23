@@ -11,7 +11,7 @@ Environment=INDIANA_LAW_DB=/home/transcribe/indiana-code/data/store/indiana-code
 Environment=INDIANA_LAW_TRANSPORT=streamable-http
 Environment=INDIANA_LAW_HOST=127.0.0.1
 Environment=INDIANA_LAW_PORT=8765
-Environment=INDIANA_LAW_PUBLIC_HOST=mcp.indianacle.com
+Environment=INDIANA_LAW_PUBLIC_HOST=mcp.openindianalaw.org
 ExecStart=/home/transcribe/indiana-code/.venv/bin/python -m indiana_law.mcp_server --http
 Restart=on-failure
 RestartSec=5

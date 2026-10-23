@@ -24,7 +24,8 @@ ul { padding-left: 1.2rem; }
 """
 
 
-def landing_html() -> str:
+def landing_html(public_host: str = "mcp.openindianalaw.org") -> str:
+    mcp_url = f"https://{public_host}/mcp"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -34,7 +35,7 @@ def landing_html() -> str:
   <style>{_CSS}</style>
 </head>
 <body>
-  <p class="flag">Indianacle · Open Legal Tools</p>
+  <p class="flag">Open Indiana Law</p>
   <h1>Indiana Code MCP</h1>
   <p class="warn"><strong>Unofficial. Not legal advice.</strong>
   Dated copies of the Indiana Code from the General Assembly’s annual
@@ -49,11 +50,11 @@ def landing_html() -> str:
   URL below.</p>
   <h2>Connect</h2>
   <p>Streamable HTTP endpoint:</p>
-  <pre>https://mcp.indianacle.com/mcp</pre>
+  <pre>{mcp_url}</pre>
   <pre>{{
   "mcpServers": {{
     "indiana-code": {{
-      "url": "https://mcp.indianacle.com/mcp"
+      "url": "{mcp_url}"
     }}
   }}
 }}</pre>
@@ -61,15 +62,15 @@ def landing_html() -> str:
   <ul>
     <li>Indiana Code snapshots 2017–2026 (HTML).</li>
     <li>Official IGA companions as far as published: session laws 1852–2026,
-        non-code 1807–2026, compiled Code PDFs for 2005 and 2009–2016,
-        constitutions, and historical tables. 2006–2008 compiled zips are
-        not on the IGA page.</li>
+        non-code 1807–2026, compiled Code PDFs for 2005–2006 and 2009–2016,
+        constitutions, and historical tables. 2007–2008 compiled zips were
+        never posted.</li>
     <li>Current Indiana court-rules PDFs from rules.incourts.gov.</li>
     <li>Indiana appellate clusters with opinion bodies from Harvard CAP and
         official court PDFs when present; not a complete set.</li>
   </ul>
   <p>Source:
-  <a href="https://github.com/open-legal-tools/indiana-code">open-legal-tools/indiana-code</a>.
+  <a href="https://github.com/open-indiana-law/indiana-code">open-indiana-law/indiana-code</a>.
   Coverage limits: <a href="/terms">terms</a>.</p>
 </body>
 </html>
@@ -98,7 +99,8 @@ def terms_html() -> str:
         can be incomplete.</li>
     <li>Companion PDFs are <code>pdftotext</code> extracts, not the HTML parser.
         Session laws go back to 1852; non-code to 1807. Compiled Code PDFs
-        exist for 2005 and 2009–2016 only.</li>
+        exist for 2005–2006 and 2009–2016. 2007–2008 compiled zips were
+        never posted.</li>
     <li>Court rules are the current official compiled PDFs from
         rules.incourts.gov, not a historical rules archive.</li>
     <li>Opinion bodies come from Harvard CAP and official Indiana court PDFs
@@ -110,7 +112,7 @@ def terms_html() -> str:
   <p>Official source:
   <a href="https://iga.in.gov/laws/ic/downloads">IGA Indiana Code downloads</a>.
   Package:
-  <a href="https://github.com/open-legal-tools/indiana-code">open-legal-tools/indiana-code</a>.</p>
+  <a href="https://github.com/open-indiana-law/indiana-code">open-indiana-law/indiana-code</a>.</p>
 </body>
 </html>
 """

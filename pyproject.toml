@@ -10,6 +10,7 @@ dependencies = ["mcp>=1.0.0,<2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+cite = ["eyecite>=2.6"]
 
 [project.scripts]
 indiana-code = "indiana_law.mcp_server:main"

@@ -60,6 +60,22 @@ CREATE TABLE IF NOT EXISTS case_form(
   case_number_in_text TEXT,
   disagrees_with_source INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS ix_case_form ON case_form(decision_form, citability);
+CREATE TABLE IF NOT EXISTS case_cite(
+  cite_key TEXT NOT NULL,
+  cluster_id TEXT NOT NULL,
+  cite_kind TEXT NOT NULL,
+  raw_cite TEXT,
+  PRIMARY KEY(cite_key, cluster_id));
+CREATE INDEX IF NOT EXISTS ix_case_cite_cluster ON case_cite(cluster_id);
+CREATE TABLE IF NOT EXISTS case_mention(
+  citing_id TEXT NOT NULL,
+  cited_id TEXT NOT NULL,
+  mention_count INTEGER NOT NULL,
+  cite_kind TEXT NOT NULL,
+  as_of TEXT,
+  PRIMARY KEY(citing_id, cited_id));
+CREATE INDEX IF NOT EXISTS ix_case_mention_cited ON case_mention(cited_id, as_of);
+CREATE INDEX IF NOT EXISTS ix_case_mention_citing ON case_mention(citing_id);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
@@ -179,6 +195,27 @@ def replace_statute_mentions(conn, rows) -> int:
     )
     conn.commit()
     return conn.execute("SELECT count(*) FROM statute_mention").fetchone()[0]
+
+
+def replace_case_cites(conn, rows) -> int:
+    conn.execute("DELETE FROM case_cite")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES (?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_cite").fetchone()[0]
+
+
+def replace_case_mentions(conn, rows) -> int:
+    conn.execute("DELETE FROM case_mention")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_mention(citing_id, cited_id, mention_count, cite_kind, as_of) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_mention").fetchone()[0]
 
 
 def finalize_cases(conn) -> None:

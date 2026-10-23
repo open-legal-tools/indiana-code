@@ -7,7 +7,7 @@ from indiana_law.mcp_server import build_server
 def test_landing_and_terms_copy():
     landing = web.landing_html()
     terms = web.terms_html()
-    assert "Unofficial" in landing and "https://mcp.indianacle.com/mcp" in landing
+    assert "Unofficial" in landing and "https://mcp.openindianalaw.org/mcp" in landing
     assert "406" in landing and "Not Acceptable" in landing
     assert "background: #f4efe6" in landing
     assert "1852" in landing and "1807" in landing

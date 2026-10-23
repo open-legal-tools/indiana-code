@@ -1,3 +1,5 @@
+import json
+
 from indiana_law import asof, caselaw, companion, store, tools
 
 
@@ -146,3 +148,84 @@ def test_ingest_decision_forms_flags_source_disagreement(tmp_path):
     assert case["decision_form"] == "memorandum" and case["citability"] == "persuasive"
     wrong = tools.get_case(conn, "wrong")
     assert wrong["decision_form"] == "memorandum" and any("Published" in f for f in wrong["flags"])
+
+
+def test_case_cite_normalize_and_extract():
+    from indiana_law import case_cites
+
+    assert case_cites.reporter_key("N.E.2d", "848", "341") == "ne2d|848|341"
+    assert case_cites.parse_reporter_cite("See Henderson, 848 N.E.2d 341, 344.") == "ne2d|848|341"
+    assert case_cites.parse_reporter_cite("109 Ind. App. 1") == "ind-app|109|1"
+    assert case_cites.parse_reporter_cite("1 Blackf. 1") == "blackf|1|1"
+    assert case_cites.normalize_docket("No. 22A-CT-0925") == "22A-CT-925"
+    assert case_cites.docket_key("22A-CT-925") == "docket|22A-CT-925"
+    assert case_cites.harvard_cap_id_from_filepath("law.free.cap.ne2d.848/341.8409796.json") == "8409796"
+    text = "Cited 848 N.E.2d 341 and again 848 N.E.2d 341. Also No. 22A-CT-925 (Ind. Ct. App.). Bare 1 U.S. 1 stays out of the regex. Pinpoint 848 N.E.2d at 344 is not a first-page key."
+    assert case_cites.extract_reporter_keys(text).count("ne2d|848|341") == 2
+    assert "ne2d|848|344" not in case_cites.extract_reporter_keys(text)
+    assert case_cites.extract_docket_keys(text) == ["docket|22A-CT-925"]
+
+
+def test_ingest_case_citations_resolves_unique_keys(tmp_path):
+    from indiana_law import case_cites
+
+    clusters = tmp_path / "clusters.jsonl"
+    harvard = tmp_path / "harvard.jsonl"
+    clusters.write_text(
+        json.dumps({
+            "id": "cited",
+            "filepath_json_harvard": "law.free.cap.ne2d.848/341.8409796.json",
+        }) + "\n" + json.dumps({
+            "id": "citing",
+            "filepath_json_harvard": "law.free.cap.ne3d.10/1.99.json",
+        }) + "\n" + json.dumps({
+            "id": "table-a",
+            "filepath_json_harvard": "law.free.cap.ne3d.92/1090.1.json",
+        }) + "\n" + json.dumps({
+            "id": "table-b",
+            "filepath_json_harvard": "law.free.cap.ne3d.92/1090.2.json",
+        }) + "\n"
+    )
+    harvard.write_text(
+        json.dumps({
+            "cap_id": 8409796, "reporter": "ne2d", "volume": "848", "first_page": "341",
+            "citations": ["848 N.E.2d 341"], "docket_number": "No. 06A-CR-341",
+        }) + "\n" + json.dumps({
+            "cap_id": 99, "reporter": "ne3d", "volume": "10", "first_page": "1",
+            "citations": ["10 N.E.3d 1"], "docket_number": "",
+        }) + "\n" + json.dumps({
+            "cap_id": 1, "reporter": "ne3d", "volume": "92", "first_page": "1090",
+            "citations": ["92 N.E.3d 1090"], "docket_number": "",
+        }) + "\n" + json.dumps({
+            "cap_id": 2, "reporter": "ne3d", "volume": "92", "first_page": "1090",
+            "citations": ["92 N.E.3d 1090"], "docket_number": "",
+        }) + "\n"
+    )
+    db = str(tmp_path / "cites.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("cited", "2006-06-01", "Henderson v. State, 848 N.E.2d 341."),
+        _cluster("citing", "2020-03-01", "We follow Henderson, 848 N.E.2d 341. See also 92 N.E.3d 1090 and 1 U.S. 1."),
+        _cluster("table-a", "2018-01-01", "Table disposition A."),
+        _cluster("table-b", "2018-01-02", "Table disposition B."),
+        _cluster("later", "2024-06-01", "Also No. 06A-CR-341 (Ind. Ct. App.)."),
+    ])
+    conn.execute(
+        "INSERT INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) "
+        "VALUES (?,?,?,?,?)",
+        ("cited", "opinion", "precedent", "06A-CR-341", 0),
+    )
+    stats = case_cites.ingest_case_citations(conn, str(clusters), str(harvard))
+    assert stats["opinions_scanned"] == 5
+    assert stats["mention_pairs"] == 2
+    inbound = tools.cases_citing_case(conn, "848 N.E.2d 341")
+    assert inbound["cluster_id"] == "cited"
+    assert {r["cluster_id"] for r in inbound["results"]} == {"citing", "later"}
+    assert any("not a citator" in f for f in inbound["flags"])
+    outbound = tools.cases_cited_in(conn, "citing")
+    assert [r["cluster_id"] for r in outbound["results"]] == ["cited"]
+    table = tools.cases_citing_case(conn, "92 N.E.3d 1090")
+    assert table["results"] == [] and table.get("candidates")
+    case = tools.get_case(conn, "cited")
+    assert case["citing_this"] == 2 and case["cited_by_this"] == 0
+    assert any("848" in c for c in case["reporter_cites"])

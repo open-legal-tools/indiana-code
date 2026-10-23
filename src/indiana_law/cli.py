@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-from . import PARSER_VERSION, acts, caselaw, companion, parse_code, store
+from . import PARSER_VERSION, acts, caselaw, case_cites, companion, parse_code, store
 
 
 def main(argv=None) -> int:
@@ -42,6 +42,18 @@ def main(argv=None) -> int:
         help="Classify memorandum vs opinion from opinion text (not official status)",
     )
     g.add_argument("db")
+    h = sub.add_parser(
+        "ingest-case-citations",
+        help="Index reporter/docket identifiers and case-to-case text cites (not a citator)",
+    )
+    h.add_argument("db")
+    h.add_argument("--clusters", required=True, help="CourtListener Indiana clusters JSONL")
+    h.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
+    h.add_argument(
+        "--eyecite",
+        action="store_true",
+        help="Also run Free Law Project eyecite (slower; regex already covers Ind. reporters)",
+    )
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -99,6 +111,21 @@ def main(argv=None) -> int:
         print(
             f"decision forms: {stats['clusters']} clusters; "
             f"{stats['counts']}; disagrees_with_source={stats['disagrees_with_source']}"
+        )
+    elif args.cmd == "ingest-case-citations":
+        conn = store.connect(args.db)
+        stats = case_cites.ingest_case_citations(
+            conn, args.clusters, args.harvard, use_eyecite=args.eyecite
+        )
+        print(
+            f"case citations: {stats['cite_rows']} identifiers "
+            f"({stats['unique_cite_keys']} unique keys); "
+            f"scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['mention_pairs']} citing/cited pairs; "
+            f"resolved {stats['resolved_cites']}; "
+            f"ambiguous {stats['ambiguous_cites']}; "
+            f"unknown {stats['unknown_cites']}; "
+            f"eyecite={stats['used_eyecite']}"
         )
     else:
         conn = store.connect(args.db)

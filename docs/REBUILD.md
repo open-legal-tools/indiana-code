@@ -69,6 +69,9 @@ PYTHONPATH=src python -m indiana_law.cli ingest-caselaw data/store/indiana-code.
   --clusters data/courtlistener/indiana/clusters.jsonl \
   --opinions data/courtlistener/indiana/opinions.jsonl \
   --harvard data/harvard-cap/indiana.jsonl
+PYTHONPATH=src python -m indiana_law.cli ingest-case-citations data/store/indiana-code.db \
+  --clusters data/courtlistener/2026-09-30/indiana/clusters.jsonl \
+  --harvard data/harvard-cap/indiana.jsonl
 ```
 
 ## Official Indiana court PDFs (including unpublished / NFP)

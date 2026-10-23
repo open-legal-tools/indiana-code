@@ -4,7 +4,7 @@ import json
 import re
 import sqlite3
 
-from . import asof
+from . import asof, case_cites
 from .asof import DISCLAIMER
 from .caselaw import COURTS, SOURCE as CASE_SOURCE
 
@@ -411,6 +411,25 @@ def get_case(conn, cluster_id):
         out["decision_form"] = form_row["decision_form"]
         out["citability"] = form_row["citability"]
         out["case_number_in_text"] = form_row["case_number_in_text"]
+    if _has_case_cites(conn):
+        cited = list(conn.execute(
+            "SELECT cite_kind, raw_cite, cite_key FROM case_cite WHERE cluster_id=?",
+            (str(cluster_id),),
+        ))
+        out["reporter_cites"] = [
+            (r["raw_cite"] or r["cite_key"]) for r in cited if r["cite_kind"] == "reporter"
+        ]
+        out["case_numbers"] = [
+            (r["raw_cite"] or r["cite_key"]).removeprefix("docket|")
+            for r in cited if r["cite_kind"] == "docket"
+        ]
+    if _has_case_mentions(conn):
+        out["citing_this"] = conn.execute(
+            "SELECT count(*) FROM case_mention WHERE cited_id=?", (str(cluster_id),)
+        ).fetchone()[0]
+        out["cited_by_this"] = conn.execute(
+            "SELECT count(*) FROM case_mention WHERE citing_id=?", (str(cluster_id),)
+        ).fetchone()[0]
     return out
 
 
@@ -489,5 +508,186 @@ def cases_citing(conn, section_id, court=None, after=None, before=None, limit=25
         flags.append(
             f"{unresolved} of these opinions predate the structured Code snapshots or cite an id not in the store"
         )
+    out["flags"] = flags
+    return out
+
+
+def _has_case_cites(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_cite'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_cite LIMIT 1").fetchone() is not None
+
+
+def _has_case_mentions(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_mention'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_mention LIMIT 1").fetchone() is not None
+
+
+def resolve_case_query(conn, query: str) -> dict:
+    """cluster_id, '848 N.E.2d 341', or '22A-CT-925' → cluster ids. Ambiguous keys stay listed."""
+    q = (query or "").strip()
+    out = {"query": q, "cluster_ids": [], "cite_key": None, "ambiguous": False}
+    if not q:
+        return out
+    row = conn.execute("SELECT cluster_id FROM case_cluster WHERE cluster_id=?", (q,)).fetchone()
+    if row:
+        out["cluster_ids"] = [row["cluster_id"]]
+        return out
+    key = case_cites.parse_reporter_cite(q) or case_cites.docket_key(q)
+    out["cite_key"] = key
+    if not key or not _has_case_cites(conn):
+        return out
+    ids = [r[0] for r in conn.execute("SELECT cluster_id FROM case_cite WHERE cite_key=?", (key,))]
+    out["cluster_ids"] = ids
+    out["ambiguous"] = len(ids) > 1
+    return out
+
+
+def _case_card(r) -> dict:
+    return {
+        "cluster_id": r["cluster_id"],
+        "court": r["court"],
+        "court_id": r["court_id"],
+        "case_name": r["case_name"],
+        "date_filed": r["date_filed"],
+        "docket_id": r["docket_id"],
+        "precedential_status": r["precedential_status"],
+        "has_opinion_text": bool(r["has_opinion_text"]),
+        "mention_count": r["mention_count"],
+        "cite_kind": r["cite_kind"],
+        "as_of": r["as_of"],
+    }
+
+
+def cases_citing_case(conn, query, court=None, after=None, before=None, limit=25):
+    """Opinions whose text cites this case. Not treatment, not a citator, not good law."""
+    limit = max(1, min(int(limit), 50))
+    resolved = resolve_case_query(conn, query)
+    out = {
+        "query": resolved["query"],
+        "cite_key": resolved["cite_key"],
+        "cluster_id": resolved["cluster_ids"][0] if len(resolved["cluster_ids"]) == 1 else None,
+        "results": [],
+        "source": CASE_SOURCE,
+        **_assurance(conn),
+    }
+    flags = [
+        "text mentions of a reporter or Rule 22 case number; not a citator; not treatment; not good law",
+        "unofficial CourtListener extract plus Harvard CAP identifiers; not legal advice",
+        "Id. / supra / Westlaw-only cites are not resolved; table-page reporter cites stay unresolved when several opinions share a page",
+    ]
+    if not resolved["query"]:
+        out["flags"] = flags + ["empty query"]
+        return out
+    if not _has_cases(conn):
+        out["flags"] = flags + ["no caselaw loaded"]
+        return out
+    if resolved["ambiguous"]:
+        out["candidates"] = resolved["cluster_ids"]
+        out["flags"] = flags + ["citation matches more than one cluster in this extract; not resolved"]
+        return out
+    if not resolved["cluster_ids"]:
+        out["flags"] = flags + ["no cluster matches this id, reporter cite, or case number"]
+        return out
+    if not _has_case_mentions(conn):
+        out["flags"] = flags + ["no case-to-case mentions indexed; run indiana_law.cli ingest-case-citations"]
+        return out
+    cid = resolved["cluster_ids"][0]
+    out["cluster_id"] = cid
+    target = conn.execute(
+        "SELECT case_name, date_filed, court FROM case_cluster WHERE cluster_id=?", (cid,)
+    ).fetchone()
+    if target:
+        out["case_name"] = target["case_name"]
+        out["date_filed"] = target["date_filed"]
+        out["court"] = target["court"]
+    sql = (
+        "SELECT m.mention_count, m.cite_kind, m.as_of, "
+        "c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, "
+        "c.docket_id, c.precedential_status, c.has_opinion_text "
+        "FROM case_mention m JOIN case_cluster c ON c.cluster_id=m.citing_id "
+        "WHERE m.cited_id=?"
+    )
+    args: list = [cid]
+    if court:
+        sql += " AND c.court_id=?"
+        args.append(court if court in COURTS else court)
+    if after:
+        sql += " AND c.date_filed>=?"
+        args.append(after)
+    if before:
+        sql += " AND c.date_filed<=?"
+        args.append(before)
+    sql += " ORDER BY c.date_filed DESC LIMIT ?"
+    args.append(limit)
+    rows = list(conn.execute(sql, args))
+    out["results"] = [_case_card(r) for r in rows]
+    total = conn.execute("SELECT count(*) FROM case_mention WHERE cited_id=?", (cid,)).fetchone()[0]
+    out["match_count"] = len(out["results"])
+    out["indexed_mention_count"] = total
+    if total > len(out["results"]):
+        flags.append(f"{total} opinions cite this cluster; showing {len(out['results'])}")
+    if not out["results"]:
+        flags.append("no indexed opinion cites this cluster")
+    out["flags"] = flags
+    return out
+
+
+def cases_cited_in(conn, query, limit=25):
+    """Cases this opinion's text cites. Not treatment, not a citator, not good law."""
+    limit = max(1, min(int(limit), 50))
+    resolved = resolve_case_query(conn, query)
+    out = {
+        "query": resolved["query"],
+        "cite_key": resolved["cite_key"],
+        "cluster_id": resolved["cluster_ids"][0] if len(resolved["cluster_ids"]) == 1 else None,
+        "results": [],
+        "source": CASE_SOURCE,
+        **_assurance(conn),
+    }
+    flags = [
+        "reporter and Rule 22 citations extracted from this opinion; not a citator; not treatment; not good law",
+        "unofficial CourtListener extract plus Harvard CAP identifiers; not legal advice",
+    ]
+    if not resolved["query"]:
+        out["flags"] = flags + ["empty query"]
+        return out
+    if not _has_cases(conn):
+        out["flags"] = flags + ["no caselaw loaded"]
+        return out
+    if resolved["ambiguous"]:
+        out["candidates"] = resolved["cluster_ids"]
+        out["flags"] = flags + ["citation matches more than one cluster in this extract; not resolved"]
+        return out
+    if not resolved["cluster_ids"]:
+        out["flags"] = flags + ["no cluster matches this id, reporter cite, or case number"]
+        return out
+    if not _has_case_mentions(conn):
+        out["flags"] = flags + ["no case-to-case mentions indexed; run indiana_law.cli ingest-case-citations"]
+        return out
+    cid = resolved["cluster_ids"][0]
+    out["cluster_id"] = cid
+    target = conn.execute(
+        "SELECT case_name, date_filed, court FROM case_cluster WHERE cluster_id=?", (cid,)
+    ).fetchone()
+    if target:
+        out["case_name"] = target["case_name"]
+        out["date_filed"] = target["date_filed"]
+        out["court"] = target["court"]
+    sql = (
+        "SELECT m.mention_count, m.cite_kind, m.as_of, "
+        "c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, "
+        "c.docket_id, c.precedential_status, c.has_opinion_text "
+        "FROM case_mention m JOIN case_cluster c ON c.cluster_id=m.cited_id "
+        "WHERE m.citing_id=? ORDER BY c.date_filed DESC LIMIT ?"
+    )
+    rows = list(conn.execute(sql, (cid, limit)))
+    out["results"] = [_case_card(r) for r in rows]
+    total = conn.execute("SELECT count(*) FROM case_mention WHERE citing_id=?", (cid,)).fetchone()[0]
+    out["match_count"] = len(out["results"])
+    out["indexed_mention_count"] = total
+    if total > len(out["results"]):
+        flags.append(f"{total} cited clusters indexed; showing {len(out['results'])}")
+    if not out["results"]:
+        flags.append("no indexed case citations in this opinion")
     out["flags"] = flags
     return out
