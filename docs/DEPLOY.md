@@ -28,16 +28,17 @@ Cursor / Claude (remote URL, once a host exists):
 }
 ```
 
-## Proposed public host
+## Public host (live as an unofficial prototype)
 
 - Process: this package, streamable HTTP, read-only SQLite
-- Machine: a small always-on box (farm node or VPS). A Cloudflare Worker is a
-  poor fit for a 512 MB database.
+- Machine: a small always-on box behind a Cloudflare tunnel; its port is not
+  exposed directly to the internet. A Cloudflare Worker is a poor fit for a
+  512 MB database.
 - Name: `mcp.indianacle.com` (Cloudflare DNS on the already-owned zone)
-- Do not wait on `openlegaltools.com`
+- Landing page at `/`, terms at `/terms`, MCP endpoint at `/mcp`
 
-Local HTTP was verified on 2026-10-21: `initialize` and `tools/list` returned
-HTTP 200 at `http://127.0.0.1:8765/mcp`. That is not a public deployment.
-
-Until DNS and the host are approved, run stdio locally from the README. Do not
-create a Cloudflare record or open a farm port from this file.
+A real MCP `initialize` handshake against `https://mcp.indianacle.com/mcp` was
+verified on 2026-10-23 (server `indiana-code`, version 1.30.0). The same
+endpoint also works from a local run: see the Streamable HTTP section of the
+README. This is an unofficial prototype; coverage limits are in
+[../NOT_COVERED.md](../NOT_COVERED.md) and on the terms page.
