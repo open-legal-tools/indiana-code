@@ -169,3 +169,44 @@ def cluster_records(clusters_path: str, opinions: dict[str, dict], harvard: dict
                     x for x in (row.get("case_name") or "", summary, headmatter, text) if x
                 ),
             }
+
+
+def ingest_statute_mentions(conn, batch_size: int = 200) -> dict:
+    """Scan opinion bodies for IC / Ind. Code citations. Text mentions only; not treatment."""
+    from collections import Counter
+
+    from . import asof, store
+
+    known = {r[0] for r in conn.execute("SELECT DISTINCT base_id FROM section_version")}
+    years = [r[0] for r in conn.execute("SELECT year FROM snapshot ORDER BY year")]
+    first_year = years[0] if years else None
+    cur = conn.execute(
+        "SELECT cluster_id, date_filed, opinion_text FROM case_cluster "
+        "WHERE has_opinion_text=1 AND opinion_text IS NOT NULL AND opinion_text != ''"
+    )
+    rows_out: list[tuple] = []
+    opinions = 0
+    with_mentions = 0
+    while True:
+        batch = cur.fetchmany(batch_size)
+        if not batch:
+            break
+        for cluster_id, date_filed, text in batch:
+            opinions += 1
+            ids = asof.extract_statute_citations(text)
+            if not ids:
+                continue
+            with_mentions += 1
+            as_of = (date_filed or "")[:10]
+            year = int(as_of[:4]) if len(as_of) >= 4 and as_of[:4].isdigit() else None
+            resolved_ok = bool(known and first_year and year and year >= first_year)
+            for sid, cnt in Counter(ids).items():
+                rows_out.append((cluster_id, sid, cnt, as_of or None, 1 if resolved_ok and sid in known else 0))
+        if opinions % 5000 == 0:
+            print(f"statute mentions: scanned {opinions} opinions, {len(rows_out)} pairs", flush=True)
+    n = store.replace_statute_mentions(conn, rows_out)
+    return {
+        "opinions_scanned": opinions,
+        "opinions_with_mentions": with_mentions,
+        "mention_pairs": n,
+    }

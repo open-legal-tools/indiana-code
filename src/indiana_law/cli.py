@@ -32,6 +32,11 @@ def main(argv=None) -> int:
     e.add_argument("--clusters", required=True)
     e.add_argument("--opinions", required=True)
     e.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
+    f = sub.add_parser(
+        "ingest-statute-mentions",
+        help="Index IC / Ind. Code mentions in opinion text (not a citator)",
+    )
+    f.add_argument("db")
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -75,6 +80,14 @@ def main(argv=None) -> int:
         store.finalize_cases(conn)
         with_text = conn.execute("SELECT count(*) FROM case_cluster WHERE has_opinion_text=1").fetchone()[0]
         print(f"case clusters: {n}; with opinion text: {with_text}")
+    elif args.cmd == "ingest-statute-mentions":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_statute_mentions(conn)
+        print(
+            f"statute mentions: scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['opinions_with_mentions']} with IC cites; "
+            f"{stats['mention_pairs']} section/opinion pairs"
+        )
     else:
         conn = store.connect(args.db)
         for spec in args.snapshot:

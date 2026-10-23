@@ -37,6 +37,13 @@ Project JSON (static.case.law) and official PDFs from public.courts.in.gov.
 That is not every Indiana decision ever issued. Unpublished / NFP memos on
 the official portal begin around 2006.
 
+`ic_cases_citing` is a text-mention index of IC / Ind. Code citations in those
+opinion bodies. It is not a citator: it does not say a case construed, applied,
+followed, or distinguished a statute, and it is not a “good law” signal.
+Mentions without an IC / Ind. Code prefix are not indexed. Structured Code
+resolution is only flagged when the opinion date is in a loaded snapshot year
+and the section id exists in the store.
+
 ## Not ingested at all
 
 - Indiana Administrative Code

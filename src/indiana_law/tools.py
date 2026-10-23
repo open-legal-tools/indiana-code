@@ -374,3 +374,82 @@ def get_case(conn, cluster_id):
         flags=_case_flags(row),
     )
     return out
+
+
+def _has_mentions(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='statute_mention'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM statute_mention LIMIT 1").fetchone() is not None
+
+
+def cases_citing(conn, section_id, court=None, after=None, before=None, limit=25):
+    """Opinions whose text mentions a Code section. Not treatment, not a citator, not good law."""
+    ids = asof.normalize_citation(section_id) or [str(section_id or "").strip()]
+    sid = ids[0] if ids else ""
+    limit = max(1, min(int(limit), 50))
+    out = {
+        "section_id": sid,
+        "citation": _citation(sid) if sid else "",
+        "results": [],
+        "source": CASE_SOURCE,
+        **_assurance(conn),
+    }
+    flags = [
+        "text mentions of this section id in opinion bodies; not a citator; not treatment; not good law",
+        "unofficial CourtListener extract; not legal advice",
+    ]
+    if not sid:
+        out["flags"] = flags + ["empty section id"]
+        return out
+    if not _has_cases(conn):
+        out["flags"] = flags + ["no caselaw loaded"]
+        return out
+    if not _has_mentions(conn):
+        out["flags"] = flags + ["no statute mentions indexed; run indiana_law.cli ingest-statute-mentions"]
+        return out
+    sql = (
+        "SELECT m.mention_count, m.as_of, m.code_resolved, "
+        "c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, "
+        "c.docket_id, c.precedential_status, c.has_opinion_text "
+        "FROM statute_mention m JOIN case_cluster c ON c.cluster_id=m.cluster_id "
+        "WHERE m.section_id=?"
+    )
+    args: list = [sid]
+    if court:
+        sql += " AND c.court_id=?"
+        args.append(court if court in COURTS else court)
+    if after:
+        sql += " AND c.date_filed>=?"
+        args.append(after)
+    if before:
+        sql += " AND c.date_filed<=?"
+        args.append(before)
+    sql += " ORDER BY c.date_filed DESC LIMIT ?"
+    args.append(limit)
+    rows = list(conn.execute(sql, args))
+    out["results"] = [{
+        "cluster_id": r["cluster_id"],
+        "court": r["court"],
+        "court_id": r["court_id"],
+        "case_name": r["case_name"],
+        "date_filed": r["date_filed"],
+        "docket_id": r["docket_id"],
+        "precedential_status": r["precedential_status"],
+        "has_opinion_text": bool(r["has_opinion_text"]),
+        "mention_count": r["mention_count"],
+        "as_of": r["as_of"],
+        "code_resolved": bool(r["code_resolved"]),
+    } for r in rows]
+    total = conn.execute("SELECT count(*) FROM statute_mention WHERE section_id=?", (sid,)).fetchone()[0]
+    out["match_count"] = len(out["results"])
+    out["indexed_mention_count"] = total
+    if total > len(out["results"]):
+        flags.append(f"{total} opinions mention this id; showing {len(out['results'])}")
+    if not out["results"]:
+        flags.append("no indexed opinion mentions this section id")
+    unresolved = sum(1 for r in out["results"] if not r["code_resolved"])
+    if unresolved:
+        flags.append(
+            f"{unresolved} of these opinions predate the structured Code snapshots or cite an id not in the store"
+        )
+    out["flags"] = flags
+    return out

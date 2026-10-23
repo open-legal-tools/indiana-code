@@ -22,7 +22,7 @@ INSTRUCTIONS = (
     "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
     "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
     "ic_search_companion and ic_get_companion when loaded. Indiana appellate clusters from a CourtListener bulk extract "
-    "use case_search and case_get. Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
+    "use case_search and case_get. ic_cases_citing lists opinions whose text mentions a Code section (text matches only; not a citator, not treatment, not good law). Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
     "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 
@@ -143,6 +143,11 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
     def case_get(cluster_id: str) -> dict[str, Any]:
         """One Indiana opinion cluster by CourtListener cluster id. Includes opinion text only when the extract has a body."""
         return tools.get_case(db, cluster_id)
+
+    @mcp.tool(title="Cases mentioning an Indiana Code section", annotations=ToolAnnotations(title="Cases mentioning an Indiana Code section", **ro))
+    def ic_cases_citing(section_id: str, court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 25) -> dict[str, Any]:
+        """Opinions whose text mentions this Code section (IC / Ind. Code citations). section_id like '35-42-1-1'. This is a text-mention index, not a citator: it does not say the case construed, applied, or followed the statute, and it is not a good-law signal. court is ind, indctapp, or indtc."""
+        return tools.cases_citing(db, section_id, court, after, before, limit)
 
     return mcp
 

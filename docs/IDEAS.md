@@ -5,7 +5,7 @@ Ideas are logged here so they are not lost. An idea is **not** a plan, a priorit
 ## 2026-10-09 (Danielle): our own annotation layer and a "web" of related authorities
 Our own headnote-style annotations, kept apart from official text, relating statutes to each other and to court cases; over time a constellation of interrelated authorities
 for AI agents and later human readers. First candidates: cross-references already in the Code ("see IC ..."), amending-act links, opinion-to-section citation edges.
-Status: reflected in `docs/SPEC-ROADMAP-v2.md` sections 5 and 7 (proposition cards, tiered edges).
+Status: reflected in `docs/SPEC-ROADMAP-v2.md` sections 5 and 7 (proposition cards, tiered edges). Opinion-to-section text mentions started 2026-10-23 (`statute_mention` / `ic_cases_citing`); not treatment.
 
 ## 2026-10-09 (Danielle): funded digitization of the pre-2017 Code years
 The 2009 to 2016 Code years exist only as PDFs. A funded project (nonprofit grants, a library or school partner) could digitize and parse them. Not pursued now.

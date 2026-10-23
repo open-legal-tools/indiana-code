@@ -26,6 +26,7 @@ is not wired to any database. Use `python -m indiana_law.mcp_server`.
 | `ic_get_companion` | One page of a companion PDF |
 | `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present) |
 | `case_get` | One cluster, with opinion text only when a body was ingested |
+| `ic_cases_citing` | Opinions whose text mentions a Code section (not a citator; not treatment) |
 
 Every answer includes `unofficial`, snapshot, dates, flags, and a disclaimer.
 

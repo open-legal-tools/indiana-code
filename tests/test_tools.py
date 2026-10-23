@@ -59,8 +59,8 @@ def test_server_lists_read_only_tools_with_schemas(mini):
     names = {t.name for t in listed}
     assert names == {
         "ic_search", "ic_resolve_citation", "ic_get_section", "ic_get_versions", "ic_browse", "ic_get_act",
-        "ic_list_companion", "ic_search_companion", "ic_get_companion",
-        "case_search", "case_get",
+            "ic_list_companion", "ic_search_companion", "ic_get_companion",
+            "case_search", "case_get", "ic_cases_citing",
     }
     for t in listed:
         assert t.title and t.annotations.readOnlyHint is True and t.annotations.openWorldHint is False

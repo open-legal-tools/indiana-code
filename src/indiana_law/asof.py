@@ -13,11 +13,21 @@ import sqlite3
 DISCLAIMER = ("Unofficial copy of the Indiana Code from the Indiana General Assembly's annual download. Not legal advice, not an "
               "official publication; it may be incomplete or out of date. Verify against the official source at iga.in.gov.")
 _CITE = re.compile(r"(?:I\.?\s?C\.?|Ind\.?\s*Code)?\s*§?\s*(\d+(?:\.\d+)?)[\-‐-―](\d+(?:\.\d+)?)[\-‐-―](\d+(?:\.\d+)?)[\-‐-―](\d+(?:\.\d+)?)", re.I)
+_STATUTE_CITE = re.compile(
+    r"(?:Ind(?:iana)?\.?\s*Code|I\.?\s*C\.?)\s*§?\s*"
+    r"(\d+(?:\.\d+)?)[\-‐-―](\d+(?:\.\d+)?)[\-‐-―](\d+(?:\.\d+)?)[\-‐-―](\d+(?:\.\d+)?)",
+    re.I,
+)
 
 
 def normalize_citation(text: str) -> list[str]:
     """Extract section ids from strings such as 'IC 31-16-15-25', 'I.C. § 31-16-15-25' or 'Ind. Code § 31-16-15-25 (2024)'."""
     return ["-".join(m.groups()) for m in _CITE.finditer(text)]
+
+
+def extract_statute_citations(text: str) -> list[str]:
+    """IC mentions that include an Ind. Code / IC prefix. Order preserved; duplicates kept."""
+    return ["-".join(m.groups()) for m in _STATUTE_CITE.finditer(text or "")]
 
 
 def _snapshot_for_year(conn, year: int):
