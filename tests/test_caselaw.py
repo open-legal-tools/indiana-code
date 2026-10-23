@@ -102,3 +102,47 @@ def test_cases_citing_statute_mentions(tmp_path):
     assert by_id["2"]["code_resolved"] is False
     assert "not a citator" in " ".join(hits["flags"])
     assert tools.cases_citing(conn, "9-30-5-1")["results"] == []
+
+
+MEMO_HEAD = (
+    "Pursuant to Indiana Appellate Rule 65(E), the trial court and parties shall not take any action "
+    "in reliance upon this memorandum decision until it is certified. MEMORANDUM DECISION Pursuant to "
+    "Ind. Appellate Rule 65(D), this Memorandum Decision is not binding precedent for any court and "
+    "may be cited only for persuasive value. Court of Appeals Case No. 26A-CR-1234"
+)
+OPINION_HEAD = (
+    "Pursuant to Indiana Appellate Rule 65(E), the trial court and parties shall not take any action "
+    "in reliance upon this Opinion until it is certified. IN THE Court of Appeals of Indiana "
+    "Court of Appeals Case No. 26A-PL-99"
+)
+
+
+def test_classify_decision_form_from_slip_wording():
+    memo = caselaw.classify_decision_form(MEMO_HEAD)
+    assert memo["decision_form"] == "memorandum"
+    assert memo["case_number_in_text"] == "26A-CR-1234"
+    opin = caselaw.classify_decision_form(OPINION_HEAD)
+    assert opin["decision_form"] == "opinion"
+    assert caselaw.citability_for("memorandum", "2023-01-01") == "persuasive"
+    assert caselaw.citability_for("memorandum", "2022-12-31") == "limited"
+    assert caselaw.citability_for("opinion", "2020-01-01") == "precedent"
+
+
+def test_ingest_decision_forms_flags_source_disagreement(tmp_path):
+    db = str(tmp_path / "forms.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("m", "2026-10-22", MEMO_HEAD),
+        _cluster("p", "2026-10-22", OPINION_HEAD),
+        _cluster("wrong", "2018-06-01", MEMO_HEAD),
+    ])
+    conn.execute("UPDATE case_cluster SET precedential_status='Unpublished' WHERE cluster_id='m'")
+    conn.execute("UPDATE case_cluster SET precedential_status='Published' WHERE cluster_id IN ('p','wrong')")
+    stats = caselaw.ingest_decision_forms(conn)
+    assert stats["counts"]["memorandum"] == 2
+    assert stats["counts"]["opinion"] == 1
+    assert stats["disagrees_with_source"] == 1
+    case = tools.get_case(conn, "m")
+    assert case["decision_form"] == "memorandum" and case["citability"] == "persuasive"
+    wrong = tools.get_case(conn, "wrong")
+    assert wrong["decision_form"] == "memorandum" and any("Published" in f for f in wrong["flags"])

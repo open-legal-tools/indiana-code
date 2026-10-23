@@ -22,7 +22,7 @@ INSTRUCTIONS = (
     "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
     "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
     "ic_search_companion and ic_get_companion when loaded. Indiana appellate clusters from a CourtListener bulk extract "
-    "use case_search and case_get. ic_cases_citing lists opinions whose text mentions a Code section (text matches only; not a citator, not treatment, not good law). Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
+    "use case_search and case_get. ic_cases_citing lists opinions whose text mentions a Code section (text matches only; not a citator, not treatment, not good law). case_search/case_get include a text-classified decision_form (memorandum vs opinion) when indexed; that is not official publication status. Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
     "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 
@@ -135,9 +135,9 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
         return tools.get_companion(db, doc_id, page)
 
     @mcp.tool(title="Search Indiana cases", annotations=ToolAnnotations(title="Search Indiana cases", **ro))
-    def case_search(query: str, court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 10) -> dict[str, Any]:
-        """Search Indiana Supreme Court, Court of Appeals, and Tax Court clusters from a CourtListener extract. court is ind, indctapp, or indtc. Most hits are metadata only."""
-        return tools.search_cases(db, query, court, after, before, limit)
+    def case_search(query: str, court: str | None = None, after: str | None = None, before: str | None = None, form: str | None = None, limit: int = 10) -> dict[str, Any]:
+        """Search Indiana Supreme Court, Court of Appeals, and Tax Court clusters from a CourtListener extract. court is ind, indctapp, or indtc. form is memorandum or opinion when decision forms are indexed (text classification, not official status). Most hits are metadata only."""
+        return tools.search_cases(db, query, court, after, before, form, limit)
 
     @mcp.tool(title="Get an Indiana case cluster", annotations=ToolAnnotations(title="Get an Indiana case cluster", **ro))
     def case_get(cluster_id: str) -> dict[str, Any]:

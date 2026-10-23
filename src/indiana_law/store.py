@@ -53,6 +53,13 @@ CREATE TABLE IF NOT EXISTS statute_mention(
   code_resolved INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(cluster_id, section_id));
 CREATE INDEX IF NOT EXISTS ix_mention_section ON statute_mention(section_id, as_of);
+CREATE TABLE IF NOT EXISTS case_form(
+  cluster_id TEXT PRIMARY KEY,
+  decision_form TEXT NOT NULL,
+  citability TEXT,
+  case_number_in_text TEXT,
+  disagrees_with_source INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_case_form ON case_form(decision_form, citability);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
@@ -150,6 +157,17 @@ def add_case_clusters(conn, records) -> int:
     )
     n = conn.execute("SELECT count(*) FROM case_cluster").fetchone()[0]
     return n
+
+
+def replace_case_forms(conn, rows) -> int:
+    conn.execute("DELETE FROM case_form")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_form").fetchone()[0]
 
 
 def replace_statute_mentions(conn, rows) -> int:

@@ -36,3 +36,4 @@ Her hypothesis: memoranda are present in the data but are not "hidden" because t
 "Memorandum Decision" or "Opinion" wording in the footer, which also carries the case number. Consistent with the counts (pre-2021 yearly volumes of 1,900 to 3,800 suggest published decisions plus
 memoranda; post-2022 volumes near 300 suggest published only), but **unconfirmed until the opinion text is extracted.** First test: count opinions containing the memorandum disclaimer, by year and status.
 Recorded as a component-parsing task in `docs/SPEC-ROADMAP-v2.md` phase 2 (decision form and citability fields).
+Started 2026-10-23: `case_form` / `ingest-decision-forms` classifies slip-opinion wording; `case_get` and `case_search` expose `decision_form` and a derived App. R. 65(D) `citability`. Text classification only.

@@ -37,6 +37,11 @@ def main(argv=None) -> int:
         help="Index IC / Ind. Code mentions in opinion text (not a citator)",
     )
     f.add_argument("db")
+    g = sub.add_parser(
+        "ingest-decision-forms",
+        help="Classify memorandum vs opinion from opinion text (not official status)",
+    )
+    g.add_argument("db")
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -87,6 +92,13 @@ def main(argv=None) -> int:
             f"statute mentions: scanned {stats['opinions_scanned']} opinions; "
             f"{stats['opinions_with_mentions']} with IC cites; "
             f"{stats['mention_pairs']} section/opinion pairs"
+        )
+    elif args.cmd == "ingest-decision-forms":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_decision_forms(conn)
+        print(
+            f"decision forms: {stats['clusters']} clusters; "
+            f"{stats['counts']}; disagrees_with_source={stats['disagrees_with_source']}"
         )
     else:
         conn = store.connect(args.db)

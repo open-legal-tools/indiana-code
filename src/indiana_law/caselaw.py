@@ -21,6 +21,78 @@ COURTS = {
 }
 
 SOURCE = "https://www.courtlistener.com/"
+MEMO_PERSUASIVE_FROM = "2023-01-01"  # App. R. 65(D); memos on or after this date may be cited for persuasive value
+
+_MEMO_HEADING = re.compile(r"MEMORANDUM\s+DECISION", re.I)
+_MEMO_65D = re.compile(
+    r"this\s+Memorandum\s+Decision\s+is\s+not\s+binding|"
+    r"shall\s+not\s+be\s+regarded\s+as\s+precedent|"
+    r"cited\s+only\s+for\s+persuasive\s+value",
+    re.I,
+)
+_RULE_65E = re.compile(r"Appellate Rule 65\(E\)", re.I)
+_FOR_PUBLICATION = re.compile(r"(?<!NOT )FOR\s+PUBLICATION", re.I)
+_NOT_FOR_PUBLICATION = re.compile(r"NOT\s+FOR\s+PUBLICATION", re.I)
+_CASE_NO = re.compile(
+    r"Case\s+No\.?\s*("
+    r"\d{2}[AST]-[A-Z]{2}-\d+|"
+    r"\d{2}[AST]\d{2}-\d{4}-[A-Z]{2}-\d+"
+    r")",
+    re.I,
+)
+
+
+def classify_decision_form(text: str) -> dict:
+    """Label memorandum vs opinion from slip-opinion wording. Text classification only."""
+    if not (text or "").strip():
+        return {"decision_form": "no_text", "signals": [], "case_number_in_text": None}
+    head = text[:3000]
+    foot = text[-1500:]
+    signals = []
+    if _MEMO_HEADING.search(head):
+        signals.append("memorandum_decision_heading")
+    if _MEMO_65D.search(head):
+        signals.append("rule_65d_memorandum")
+    if _NOT_FOR_PUBLICATION.search(head):
+        signals.append("not_for_publication")
+    if _FOR_PUBLICATION.search(head):
+        signals.append("for_publication")
+    if _RULE_65E.search(head):
+        signals.append("rule_65e_banner")
+    memo = bool({"memorandum_decision_heading", "rule_65d_memorandum", "not_for_publication"} & set(signals))
+    opin = bool({"for_publication", "rule_65e_banner"} & set(signals)) and not memo
+    if memo:
+        form = "memorandum"
+    elif opin:
+        form = "opinion"
+    else:
+        form = "unlabeled"
+    found = _CASE_NO.search(head) or _CASE_NO.search(foot)
+    return {
+        "decision_form": form,
+        "signals": signals,
+        "case_number_in_text": found.group(1) if found else None,
+    }
+
+
+def citability_for(decision_form: str, date_filed: str | None) -> str:
+    """Derived from decision_form and App. R. 65(D). Not an official citability ruling."""
+    if decision_form == "opinion":
+        return "precedent"
+    if decision_form == "memorandum":
+        if (date_filed or "") >= MEMO_PERSUASIVE_FROM:
+            return "persuasive"
+        return "limited"
+    return "unknown"
+
+
+def _disagrees_with_source(form: str, precedential_status: str | None) -> bool:
+    status = (precedential_status or "").lower()
+    if form == "memorandum" and status == "published":
+        return True
+    if form == "opinion" and status == "unpublished":
+        return True
+    return False
 
 
 class _HTMLText(HTMLParser):
@@ -210,3 +282,39 @@ def ingest_statute_mentions(conn, batch_size: int = 200) -> dict:
         "opinions_with_mentions": with_mentions,
         "mention_pairs": n,
     }
+
+
+def ingest_decision_forms(conn, batch_size: int = 200) -> dict:
+    """Classify memorandum vs opinion from opinion_text. Not official publication status."""
+    from . import store
+
+    cur = conn.execute(
+        "SELECT cluster_id, date_filed, precedential_status, opinion_text, has_opinion_text "
+        "FROM case_cluster"
+    )
+    rows_out: list[tuple] = []
+    counts = {"memorandum": 0, "opinion": 0, "both": 0, "unlabeled": 0, "no_text": 0}
+    disagree = 0
+    n = 0
+    while True:
+        batch = cur.fetchmany(batch_size)
+        if not batch:
+            break
+        for cluster_id, date_filed, status, text, has_text in batch:
+            n += 1
+            classified = classify_decision_form(text if has_text else "")
+            form = classified["decision_form"]
+            counts[form] = counts.get(form, 0) + 1
+            disagrees = 1 if _disagrees_with_source(form, status) else 0
+            disagree += disagrees
+            rows_out.append((
+                cluster_id,
+                form,
+                citability_for(form, date_filed),
+                classified["case_number_in_text"],
+                disagrees,
+            ))
+        if n % 10000 == 0:
+            print(f"decision forms: scanned {n}", flush=True)
+    stored = store.replace_case_forms(conn, rows_out)
+    return {"clusters": stored, "counts": counts, "disagrees_with_source": disagree}

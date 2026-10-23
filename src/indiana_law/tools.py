@@ -286,14 +286,37 @@ def _has_cases(conn) -> bool:
     return bool(row) and conn.execute("SELECT 1 FROM case_cluster LIMIT 1").fetchone() is not None
 
 
-def _case_flags(row) -> list[str]:
+def _has_case_forms(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_form'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_form LIMIT 1").fetchone() is not None
+
+
+def _form_for(conn, cluster_id):
+    if not _has_case_forms(conn):
+        return None
+    return conn.execute("SELECT * FROM case_form WHERE cluster_id=?", (str(cluster_id),)).fetchone()
+
+
+def _case_flags(row, form_row=None) -> list[str]:
     flags = ["unofficial CourtListener extract; not a citator; not legal advice"]
     if not row["has_opinion_text"]:
         flags.append("no opinion body in this extract; cluster metadata only")
+    if form_row:
+        flags.append(
+            "decision_form is a text classification of the slip opinion, not official publication status"
+        )
+        if form_row["disagrees_with_source"]:
+            flags.append(
+                f"text form is {form_row['decision_form']}; CourtListener precedential_status is {row['precedential_status']}"
+            )
+        if form_row["citability"] == "persuasive":
+            flags.append("App. R. 65(D): memorandum on or after 2023-01-01 may be cited for persuasive value")
+        elif form_row["citability"] == "limited":
+            flags.append("App. R. 65(D) as then in force: memorandum generally not citable as precedent")
     return flags
 
 
-def search_cases(conn, query, court=None, after=None, before=None, limit=10):
+def search_cases(conn, query, court=None, after=None, before=None, form=None, limit=10):
     """Search Indiana opinion clusters (Supreme Court, Court of Appeals, Tax Court)."""
     limit = max(1, min(int(limit), 25))
     out = {"query": query, "results": [], "source": CASE_SOURCE, **_assurance(conn)}
@@ -307,11 +330,17 @@ def search_cases(conn, query, court=None, after=None, before=None, limit=10):
     if not fts:
         out["flags"] = ["case_fts index missing; rebuild with indiana_law.cli ingest-caselaw"]
         return out
+    join_form = _has_case_forms(conn)
     sql = (
         "SELECT c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, c.precedential_status, "
-        "c.has_opinion_text, snippet(case_fts, 0, '[', ']', '...', 24) AS snip "
-        "FROM case_fts JOIN case_cluster c ON c.rowid=case_fts.rowid WHERE case_fts MATCH ?"
+        "c.has_opinion_text, snippet(case_fts, 0, '[', ']', '...', 24) AS snip"
     )
+    if join_form:
+        sql += ", f.decision_form, f.citability"
+    sql += " FROM case_fts JOIN case_cluster c ON c.rowid=case_fts.rowid"
+    if join_form:
+        sql += " LEFT JOIN case_form f ON f.cluster_id=c.cluster_id"
+    sql += " WHERE case_fts MATCH ?"
     args: list = [_fts_query(query, "all")]
     if court:
         sql += " AND c.court_id=?"
@@ -322,6 +351,9 @@ def search_cases(conn, query, court=None, after=None, before=None, limit=10):
     if before:
         sql += " AND c.date_filed<=?"
         args.append(before)
+    if form and join_form:
+        sql += " AND f.decision_form=?"
+        args.append(form)
     sql += " LIMIT ?"
     args.append(limit)
     try:
@@ -338,6 +370,7 @@ def search_cases(conn, query, court=None, after=None, before=None, limit=10):
         "case_name": r["case_name"], "date_filed": r["date_filed"],
         "precedential_status": r["precedential_status"],
         "has_opinion_text": bool(r["has_opinion_text"]), "snippet": r["snip"],
+        **({"decision_form": r["decision_form"], "citability": r["citability"]} if join_form else {}),
     } for r in rows]
     if not out["results"]:
         out.setdefault("flags", []).append("no caselaw matches")
@@ -355,6 +388,7 @@ def get_case(conn, cluster_id):
     if not row:
         out["flags"] = ["cluster not found"]
         return out
+    form_row = _form_for(conn, cluster_id)
     out.update(
         found=True,
         court=row["court"],
@@ -371,8 +405,12 @@ def get_case(conn, cluster_id):
         text_source=row["text_source"],
         text=row["opinion_text"],
         url=f"https://www.courtlistener.com/opinion/{row['cluster_id']}/{row['slug']}/" if row["slug"] else CASE_SOURCE,
-        flags=_case_flags(row),
+        flags=_case_flags(row, form_row),
     )
+    if form_row:
+        out["decision_form"] = form_row["decision_form"]
+        out["citability"] = form_row["citability"]
+        out["case_number_in_text"] = form_row["case_number_in_text"]
     return out
 
 

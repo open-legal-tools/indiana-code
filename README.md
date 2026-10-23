@@ -24,8 +24,8 @@ is not wired to any database. Use `python -m indiana_law.mcp_server`.
 | `ic_list_companion` | Constitution, Non-code, Acts, archive titles, historical tables, court rules (when loaded) |
 | `ic_search_companion` | Full-text search of those companion PDFs |
 | `ic_get_companion` | One page of a companion PDF |
-| `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present) |
-| `case_get` | One cluster, with opinion text only when a body was ingested |
+| `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present); optional `form` filter |
+| `case_get` | One cluster, with opinion text only when a body was ingested; includes text-classified decision form when indexed |
 | `ic_cases_citing` | Opinions whose text mentions a Code section (not a citator; not treatment) |
 
 Every answer includes `unofficial`, snapshot, dates, flags, and a disclaimer.

@@ -44,6 +44,11 @@ Mentions without an IC / Ind. Code prefix are not indexed. Structured Code
 resolution is only flagged when the opinion date is in a loaded snapshot year
 and the section id exists in the store.
 
+`decision_form` / `citability` on case tools is a text classification of the
+slip opinion (memorandum vs opinion, App. R. 65(D) as a date rule). It is not
+the court’s official publication status. CourtListener `precedential_status`
+sometimes labels memoranda Published (especially 2017–2018).
+
 ## Not ingested at all
 
 - Indiana Administrative Code
