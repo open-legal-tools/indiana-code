@@ -98,8 +98,15 @@ INDIANA_LAW_TRANSPORT=streamable-http INDIANA_LAW_PORT=8765 \
   python -m indiana_law.mcp_server
 ```
 
-A public URL (`mcp.indianacle.com`) is proposed, not deployed. See
-[docs/DEPLOY.md](docs/DEPLOY.md).
+## Hosted prototype
+
+A hosted, unofficial instance of this server runs at **https://mcp.indianacle.com**
+(Streamable HTTP endpoint `https://mcp.indianacle.com/mcp`, with a landing page at
+the root and the terms at `/terms`). It is an early prototype with known gaps; see
+[NOT_COVERED.md](NOT_COVERED.md) and the terms page, and verify every citation at
+[iga.in.gov](https://iga.in.gov/laws/ic/downloads). It is not legal advice.
+Opening `/mcp` in a browser shows a JSON 406 error: that is the machine protocol,
+not a broken site. For how it is hosted, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Source
 
