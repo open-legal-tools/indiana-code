@@ -341,7 +341,7 @@ def search_cases(conn, query, court=None, after=None, before=None, limit=10):
     } for r in rows]
     if not out["results"]:
         out.setdefault("flags", []).append("no caselaw matches")
-    out.setdefault("flags", []).append("most Indiana clusters have no opinion body in the CourtListener opinions CSV")
+    out.setdefault("flags", []).append("opinion bodies from Harvard CAP and official Indiana court PDFs when present; not a complete set")
     return out
 
 

@@ -16,6 +16,8 @@ KIND_CONSTITUTION = "constitution"
 KIND_NONCODE = "noncode"
 KIND_ACTS = "acts"
 KIND_ARCHIVE = "archive_title"
+KIND_COURT_RULES = "court_rules"
+KIND_HISTORICAL_TABLE = "historical_table"
 
 
 def pdf_pages(path: str) -> list[str]:
@@ -34,15 +36,25 @@ def classify(filename: str) -> str | None:
         return KIND_CONSTITUTION
     if "noncode" in name or "non-code" in name:
         return KIND_NONCODE
-    if re.search(r"acts\.pdf$", name):
+    if "derivation" in name or "disposition" in name or "session law table" in name:
+        return KIND_HISTORICAL_TABLE
+    if re.search(r"acts\.pdf$", name) or re.search(r"\d{4}.*(eo|rs)", name):
         return KIND_ACTS
     if re.search(r"(title[_-]?|^\d+\.pdf$)", name):
         return KIND_ARCHIVE
+    if any(token in name for token in (
+        "evidence", "trial", "appellate", "criminal", "parenting",
+        "child-support", "child support", "admission", "judicial-conduct",
+        "professional-conduct", "small-claims", "post-conviction", "adr",
+        "original-actions", "commercial", "admin", "records", "access",
+        "jury",
+    )):
+        return KIND_COURT_RULES
     return None
 
 
 def year_from_path(path: str, default: int | None = None) -> int | None:
-    m = re.search(r"(20\d{2})", os.path.basename(path))
+    m = re.search(r"((?:1[89]|20)\d{2})", os.path.basename(path))
     if m:
         return int(m.group(1))
     return default
@@ -52,6 +64,12 @@ def doc_id(kind: str, year: int | None, filename: str) -> str:
     stem = re.sub(r"[^a-z0-9]+", "-", Path(filename).stem.lower()).strip("-")
     if kind == KIND_ARCHIVE:
         return f"archive-{year or 'unknown'}-{stem}"
+    if kind == KIND_COURT_RULES:
+        return f"court-rules-{year or 'current'}-{stem}"
+    if kind == KIND_HISTORICAL_TABLE:
+        return f"historical-table-{stem}"
+    if kind == KIND_ACTS and year:
+        return f"acts-{year}-{stem}"
     if year:
         return f"{kind}-{year}"
     return stem
@@ -105,8 +123,10 @@ def pages_from_pdf(path: str, kind: str | None = None, year: int | None = None) 
     title = {
         KIND_CONSTITUTION: f"Indiana Constitution ({year})",
         KIND_NONCODE: f"Indiana non-code statutes ({year})",
-        KIND_ACTS: f"Indiana Acts ({year})",
+        KIND_ACTS: f"Indiana Acts {os.path.basename(path)} ({year})",
         KIND_ARCHIVE: f"Indiana Code archive {os.path.basename(path)} ({year})",
+        KIND_HISTORICAL_TABLE: f"Indiana historical table — {Path(path).stem.replace('-', ' ')}",
+        KIND_COURT_RULES: f"Indiana court rules — {Path(path).stem.replace('-', ' ')} ({year})",
     }.get(kind, os.path.basename(path))
     out = []
     for i, text in enumerate(pdf_pages(path), start=1):

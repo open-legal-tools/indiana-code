@@ -60,10 +60,13 @@ def landing_html() -> str:
   <h2>What is loaded</h2>
   <ul>
     <li>Indiana Code snapshots 2017–2026 (HTML).</li>
-    <li>Archive title PDFs 2009–2016 (pdftotext). 2005 chapter PDFs are
-        being added. 2006–2008 have no zip on the IGA page.</li>
-    <li>Constitution, Non-code, and Acts companions for recent years.</li>
-    <li>120,100 Indiana case clusters; 1,218 have an opinion body.</li>
+    <li>Official IGA companions as far as published: session laws 1852–2026,
+        non-code 1807–2026, compiled Code PDFs for 2005 and 2009–2016,
+        constitutions, and historical tables. 2006–2008 compiled zips are
+        not on the IGA page.</li>
+    <li>Current Indiana court-rules PDFs from rules.incourts.gov.</li>
+    <li>Indiana appellate clusters with opinion bodies from Harvard CAP and
+        official court PDFs when present; not a complete set.</li>
   </ul>
   <p>Source:
   <a href="https://github.com/open-legal-tools/indiana-code">open-legal-tools/indiana-code</a>.
@@ -93,9 +96,14 @@ def terms_html() -> str:
     <li>Act clauses: 2017 and 2019–2026. 2018 acts are missing.</li>
     <li>As-of dates use a July-1 cutoff plus those clauses. Mid-year answers
         can be incomplete.</li>
-    <li>Companion PDFs are <code>pdftotext</code> extracts, not the HTML parser.</li>
-    <li>Caselaw is a CourtListener extract: most clusters are metadata only.</li>
-    <li>No Administrative Code, court rules, citator, or “good law” signal.</li>
+    <li>Companion PDFs are <code>pdftotext</code> extracts, not the HTML parser.
+        Session laws go back to 1852; non-code to 1807. Compiled Code PDFs
+        exist for 2005 and 2009–2016 only.</li>
+    <li>Court rules are the current official compiled PDFs from
+        rules.incourts.gov, not a historical rules archive.</li>
+    <li>Opinion bodies come from Harvard CAP and official Indiana court PDFs
+        when present; not every decision ever issued.</li>
+    <li>No Administrative Code, citator, or “good law” signal.</li>
     <li>No query logs are published. Do not send confidential client facts
         to a public endpoint if that would be inappropriate.</li>
   </ul>

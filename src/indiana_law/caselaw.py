@@ -2,8 +2,8 @@
 
 The 2026-09-30 opinions CSV was fully scanned (2.1B rows). Only 1,224 rows join to the
 120,100 Indiana clusters, and most of those have HTML rather than plain_text. This module
-indexes cluster metadata plus any opinion body that can be recovered from HTML/XML fields.
-It does not download Harvard JSON or PDFs.
+indexes cluster metadata plus any opinion body that can be recovered from HTML/XML fields
+or from extracted Harvard CAP JSON (static.case.law volume zips).
 """
 from __future__ import annotations
 
@@ -91,7 +91,44 @@ def _as_int(value, default: int = 0) -> int:
         return default
 
 
-def cluster_records(clusters_path: str, opinions: dict[str, dict]):
+def harvard_key(reporter: str, volume: str, first_page: str) -> str:
+    return f"{reporter}|{volume}|{first_page}"
+
+
+def parse_harvard_filepath(path: str) -> tuple[str, str, str] | None:
+    """law.free.cap.ne2d.848/341.8409796.json -> (ne2d, 848, 341)."""
+    path = (path or "").strip()
+    if not path.startswith("law.free.cap."):
+        return None
+    prefix, _, name = path.partition("/")
+    rest = prefix[len("law.free.cap."):]
+    if "." not in rest:
+        return None
+    reporter, volume = rest.rsplit(".", 1)
+    first_page = name.split(".", 1)[0] if name else ""
+    if not reporter or not volume.isdigit() or not first_page:
+        return None
+    return reporter, volume, first_page
+
+
+def load_harvard(path: str) -> dict[str, dict]:
+    """Index extracted CAP JSONL by reporter|volume|first_page."""
+    by_key: dict[str, dict] = {}
+    if not path:
+        return by_key
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            key = harvard_key(str(row.get("reporter") or ""), str(row.get("volume") or ""), str(row.get("first_page") or ""))
+            if not key.endswith("|") and (not by_key.get(key) or len(row.get("text") or "") > len(by_key[key].get("text") or "")):
+                by_key[key] = row
+    return by_key
+
+
+def cluster_records(clusters_path: str, opinions: dict[str, dict], harvard: dict[str, dict] | None = None):
+    harvard = harvard or {}
     with open(clusters_path, encoding="utf-8") as fh:
         for line in fh:
             if not line.strip():
@@ -99,6 +136,14 @@ def cluster_records(clusters_path: str, opinions: dict[str, dict]):
             row = json.loads(line)
             cid = str(row.get("id") or "")
             op = opinions.get(cid, {})
+            text = op.get("text") or ""
+            source = op.get("text_source") or ""
+            parsed = parse_harvard_filepath(row.get("filepath_json_harvard") or "")
+            if parsed and not text:
+                hv = harvard.get(harvard_key(*parsed))
+                if hv and hv.get("text"):
+                    text = hv["text"]
+                    source = "harvard_cap"
             summary = (row.get("summary") or "").strip()
             headmatter = (row.get("headmatter") or "").strip()
             court_id = row.get("court_id") or ""
@@ -117,10 +162,10 @@ def cluster_records(clusters_path: str, opinions: dict[str, dict]):
                 "summary": summary,
                 "headmatter": headmatter,
                 "opinion_id": op.get("opinion_id") or "",
-                "opinion_text": op.get("text") or "",
-                "text_source": op.get("text_source") or "",
-                "has_opinion_text": 1 if op.get("text") else 0,
+                "opinion_text": text,
+                "text_source": source,
+                "has_opinion_text": 1 if text else 0,
                 "search_text": " ".join(
-                    x for x in (row.get("case_name") or "", summary, headmatter, op.get("text") or "") if x
+                    x for x in (row.get("case_name") or "", summary, headmatter, text) if x
                 ),
             }

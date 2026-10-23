@@ -10,8 +10,12 @@ def test_landing_and_terms_copy():
     assert "Unofficial" in landing and "https://mcp.indianacle.com/mcp" in landing
     assert "406" in landing and "Not Acceptable" in landing
     assert "background: #f4efe6" in landing
+    assert "1852" in landing and "1807" in landing
+    assert "not a complete set" in landing
+    assert "1,218" not in landing
     assert "not legal advice" in terms.lower()
     assert "2018" in terms
+    assert "court rules" in terms.lower()
 
 
 def test_custom_http_routes_registered(mini):

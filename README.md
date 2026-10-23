@@ -1,8 +1,9 @@
 # Indiana Code MCP
 
-Dated, unofficial copies of the Indiana Code (2017–2026) as a local MCP
-server. Search, citation resolve, as-of text, version history, outline
-browse, and public-law clause lookup.
+Dated, unofficial copies of Indiana legal text as a local MCP server.
+Structured Indiana Code for 2017–2026; official IGA companions as far back
+as IGA publishes them; current court-rules PDFs; Indiana appellate clusters
+with opinion bodies when Harvard CAP or official court PDFs supplied them.
 
 This is an access layer, not an official publication, and not legal advice.
 Verify every citation at [iga.in.gov](https://iga.in.gov/laws/ic/downloads).
@@ -20,11 +21,11 @@ is not wired to any database. Use `python -m indiana_law.mcp_server`.
 | `ic_get_versions` | Every loaded version of a section |
 | `ic_browse` | Titles → articles → chapters → sections |
 | `ic_get_act` | Code targets of a public law (`P.L.98-2026`) |
-| `ic_list_companion` | Constitution / Non-code / Acts / archive PDFs (when loaded) |
+| `ic_list_companion` | Constitution, Non-code, Acts, archive titles, historical tables, court rules (when loaded) |
 | `ic_search_companion` | Full-text search of those companion PDFs |
 | `ic_get_companion` | One page of a companion PDF |
-| `case_search` | Indiana appellate clusters (CourtListener extract; metadata-heavy) |
-| `case_get` | One cluster, with opinion text only when the extract has a body |
+| `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present) |
+| `case_get` | One cluster, with opinion text only when a body was ingested |
 
 Every answer includes `unofficial`, snapshot, dates, flags, and a disclaimer.
 

@@ -25,12 +25,13 @@ def main(argv=None) -> int:
     d.add_argument("--pdf", action="append", default=[], dest="pdfs", help="A single companion or archive-title PDF")
     d.add_argument("--pdf-dir", action="append", default=[], dest="pdf_dirs", help="Directory of companion or archive-title PDFs")
     d.add_argument("--year", type=int, default=None)
-    d.add_argument("--kind", default=None, help="constitution, noncode, acts, or archive_title")
+    d.add_argument("--kind", default=None, help="constitution, noncode, acts, archive_title, court_rules, or historical_table")
     d.add_argument("--extract-dir", default="data/companion")
     e = sub.add_parser("ingest-caselaw", help="Index the local CourtListener Indiana extract")
     e.add_argument("db")
     e.add_argument("--clusters", required=True)
     e.add_argument("--opinions", required=True)
+    e.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -69,7 +70,8 @@ def main(argv=None) -> int:
     elif args.cmd == "ingest-caselaw":
         conn = store.connect(args.db)
         opinions = caselaw.load_opinions(args.opinions)
-        n = store.add_case_clusters(conn, caselaw.cluster_records(args.clusters, opinions))
+        harvard = caselaw.load_harvard(args.harvard) if args.harvard else {}
+        n = store.add_case_clusters(conn, caselaw.cluster_records(args.clusters, opinions, harvard))
         store.finalize_cases(conn)
         with_text = conn.execute("SELECT count(*) FROM case_cluster WHERE has_opinion_text=1").fetchone()[0]
         print(f"case clusters: {n}; with opinion text: {with_text}")

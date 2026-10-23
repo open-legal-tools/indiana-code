@@ -22,7 +22,7 @@ INSTRUCTIONS = (
     "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
     "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
     "ic_search_companion and ic_get_companion when loaded. Indiana appellate clusters from a CourtListener bulk extract "
-    "use case_search and case_get; most clusters have metadata only, not a full opinion body. Every answer includes its snapshot, dates and flags. Always show the user "
+    "use case_search and case_get. Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
     "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 

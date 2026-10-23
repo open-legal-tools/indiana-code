@@ -1,4 +1,15 @@
-from indiana_law import caselaw, store, tools
+from indiana_law import caselaw, companion, store, tools
+
+
+def test_parse_harvard_filepath():
+    assert caselaw.parse_harvard_filepath("law.free.cap.ne2d.848/341.8409796.json") == ("ne2d", "848", "341")
+    assert caselaw.parse_harvard_filepath("not-harvard") is None
+
+
+def test_classify_historical_and_records():
+    assert companion.classify("1852RS1-O.pdf") == companion.KIND_ACTS
+    assert companion.classify("records.pdf") == companion.KIND_COURT_RULES
+    assert companion.classify("Title 12 Derivation Table.pdf") == companion.KIND_HISTORICAL_TABLE
 
 
 def test_html_to_text_and_opinion_fallback():

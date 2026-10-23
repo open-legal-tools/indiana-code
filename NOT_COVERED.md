@@ -11,29 +11,38 @@ that disclaimer.
 - As-of resolution uses a July-1 cutoff plus those clauses. Pre-July-1 answers
   are only as good as the clause parse.
 
-## Companion PDFs (optional, same downloads page)
+## Companion PDFs (official IGA and court publications)
 
-`indiana_law.cli ingest-companion` can index Constitution, Non-code, and full
-Acts PDFs from the official HTML zips, plus pre-2017 archive title PDFs you
-download yourself (see `docs/ARCHIVE-PDFS.md`). Those use
-`ic_list_companion` / `ic_search_companion` / `ic_get_companion`. They are
-not dated Code sections.
+`indiana_law.cli ingest-companion` indexes Constitution, Non-code, Acts,
+historical tables, pre-2017 archive title PDFs, and current court-rules PDFs.
+Those use `ic_list_companion` / `ic_search_companion` / `ic_get_companion`.
+They are not dated Code sections.
 
-- 2018 still has no usable *act-clause* file
-- Pre-2017 archive zips are downloaded separately (`scripts/fetch_iga_archives.py`); 2006–2008 were missing at the official zip path on 2026-10-22
+- Session laws: IGA archive 1852–2000 plus yearly Acts 2000–2026
+  (`scripts/fetch_iga_historical.py`)
+- Non-code statutes: 1807–2026 (years IGA published a PDF)
+- Compiled Code title/chapter PDFs: 2005 and 2009–2016
+  (`scripts/fetch_iga_archives.py`); **2006–2008 and pre-2005 compiled zips
+  were still missing at the official path on 2026-10-23**
+- Court rules: current compiled PDFs from rules.incourts.gov, including Access
+  to Court Records. Not a historical rules archive.
 - Companion text is `pdftotext` output, not the HTML parser
+- 2018 still has no usable *act-clause* file
+
+## Not a complete opinion library
+
+`case_search` / `case_get` index Indiana clusters from the CourtListener
+2026-09-30 bulk, with opinion bodies joined from Harvard Caselaw Access
+Project JSON (static.case.law) and official PDFs from public.courts.in.gov.
+That is not every Indiana decision ever issued. Unpublished / NFP memos on
+the official portal begin around 2006.
 
 ## Not ingested at all
 
 - Indiana Administrative Code
-- Indiana court rules
-- A complete opinion library. `case_search` / `case_get` index 120,100 Indiana
-  clusters from the CourtListener 2026-09-30 bulk. A full scan of the opinions
-  CSV kept 1,224 bodies (HTML fallback). The rest are metadata / headmatter /
-  summary only. Harvard JSON and PDFs were not downloaded.
 - SALI / FOLIO tags below title level (a title map CSV exists; no tool uses it)
-- Daily or mid-session updates. Coverage is the annual compile, `data_through`
-  2026-06-23.
+- Daily or mid-session updates. Structured Code coverage is the annual compile,
+  `data_through` 2026-06-23.
 
 ## Not this tool
 
