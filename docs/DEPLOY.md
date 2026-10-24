@@ -1,6 +1,6 @@
 # Hosted MCP (streamable HTTP)
 
-Authorized 2026-10-22: stand up `https://mcp.indianacle.com` on farm
+Authorized 2026-10-22: stand up `https://mcp.openindianalaw.org` on farm
 `worker-01`, loopback only, dedicated Cloudflare tunnel. Do not open a new
 public farm port. Do not reuse another tunnel's token.
 
@@ -46,6 +46,6 @@ copy on worker-02, worker-03, or worker-04. See [LISTING.md](LISTING.md).
 
 ```bash
 curl -sS http://127.0.0.1:8765/health
-curl -sS -o /dev/null -w '%{http_code}\n' https://mcp.indianacle.com/
-INDIANA_LAW_DB=/path/to/indiana-code.db python scripts/smoke_http.py https://mcp.indianacle.com/mcp
+curl -sS -o /dev/null -w '%{http_code}\n' https://mcp.openindianalaw.org/
+INDIANA_LAW_DB=/path/to/indiana-code.db python scripts/smoke_http.py https://mcp.openindianalaw.org/mcp
 ```
