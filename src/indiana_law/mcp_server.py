@@ -13,7 +13,7 @@ from mcp.types import ToolAnnotations
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
-from . import tools, web
+from . import tools, usage, web
 
 INSTRUCTIONS = (
     "Dated, unofficial copies of the Indiana Code from the General Assembly's annual downloads (2017 to 2026), with effective-dated "
@@ -87,6 +87,7 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
         transport_security=_transport_security(public_host),
     )
     db = conn or _connect()
+    usage.count_tools(mcp, usage.from_env())
     ro = dict(readOnlyHint=True, idempotentHint=True, openWorldHint=False, destructiveHint=False)
 
     @mcp.custom_route("/", methods=["GET"], name="landing")
