@@ -22,7 +22,7 @@ INSTRUCTIONS = (
     "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
     "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
     "ic_search_companion and ic_get_companion when loaded. Indiana appellate clusters from a CourtListener bulk extract "
-    "use case_search and case_get. ic_cases_citing lists opinions whose text mentions a Code section (text matches only; not a citator, not treatment, not good law). cases_citing_case lists opinions whose text cites a case by reporter or Rule 22 case number; cases_cited_in lists cases cited in one opinion (text matches only; not a citator, not treatment, not good law). case_search/case_get include a text-classified decision_form (memorandum vs opinion) when indexed; that is not official publication status. Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
+    "use case_search and case_get. ic_cases_citing lists opinions whose text mentions a Code section (text matches only; not a citator, not treatment, not good law). cases_citing_case lists opinions whose text cites a case by reporter or Rule 22 case number; federal and sister-state reporter cites that are not in this extract stay unresolved text mentions. cases_cited_in lists cases cited in one opinion (text matches only; not a citator, not treatment, not good law). cases_citing_court lists Indiana opinions whose text has a (court year) parenthetical such as (7th Cir. 2021) or (N.D. Ind. 2019). case_search/case_get include a text-classified decision_form (memorandum vs opinion) when indexed; that is not official publication status. Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
     "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 
@@ -172,8 +172,13 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
 
     @mcp.tool(title="Cases cited in an opinion", annotations=ToolAnnotations(title="Cases cited in an opinion", **ro))
     def cases_cited_in(query: str, limit: int = 25) -> dict[str, Any]:
-        """Cases this opinion's text cites, resolved against Harvard reporter identifiers and Rule 22 case numbers. query is a cluster id, reporter cite, or case number. Text-mention index only: not a citator, not treatment, not good law."""
+        """Cases this opinion's text cites, resolved against Harvard reporter identifiers and Rule 22 case numbers. query is a cluster id, reporter cite, or case number. Unresolved federal and sister-state reporter mentions are listed separately. Text-mention index only: not a citator, not treatment, not good law."""
         return tools.cases_cited_in(db, query, limit)
+
+    @mcp.tool(title="Cases citing a court and year", annotations=ToolAnnotations(title="Cases citing a court and year", **ro))
+    def cases_citing_court(court: str, year: str | None = None, citing_court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 25) -> dict[str, Any]:
+        """Indiana opinions whose text has a (court year) parenthetical. court is an Indigo-style abbreviation such as '7th Cir.', 'N.D. Ind.', 'S.D. Ind.', or 'Ill.'. year is optional (2021). citing_court filters the citing Indiana court (ind, indctapp, indtc). Text-mention index only: not a citator, not treatment, not good law."""
+        return tools.cases_citing_court(db, court, year, citing_court, after, before, limit)
 
     return mcp
 

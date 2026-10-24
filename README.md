@@ -27,8 +27,9 @@ is not wired to any database. Use `python -m indiana_law.mcp_server`.
 | `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present); optional `form` filter |
 | `case_get` | One cluster, with opinion text only when a body was ingested; includes text-classified decision form when indexed |
 | `ic_cases_citing` | Opinions whose text mentions a Code section (not a citator; not treatment) |
-| `cases_citing_case` | Opinions whose text cites a case (reporter or Rule 22 number; not a citator) |
-| `cases_cited_in` | Cases cited in one opinion (same limits) |
+| `cases_citing_case` | Opinions whose text cites a case (reporter or Rule 22 number; federal/sister-state cites stay unresolved; not a citator) |
+| `cases_cited_in` | Cases cited in one opinion (resolved Indiana clusters plus unresolved outbound mentions) |
+| `cases_citing_court` | Indiana opinions with a `(court year)` parenthetical such as `(7th Cir. 2021)` or `(N.D. Ind. 2019)` |
 
 Every answer includes `unofficial`, snapshot, dates, flags, and a disclaimer.
 

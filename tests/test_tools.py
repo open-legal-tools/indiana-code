@@ -61,7 +61,7 @@ def test_server_lists_read_only_tools_with_schemas(mini):
         "ic_search", "ic_resolve_citation", "ic_get_section", "ic_get_versions", "ic_browse", "ic_get_act",
             "ic_list_companion", "ic_search_companion", "ic_get_companion",
             "case_search", "case_get", "ic_cases_citing",
-            "cases_citing_case", "cases_cited_in",
+            "cases_citing_case", "cases_cited_in", "cases_citing_court",
     }
     for t in listed:
         assert t.title and t.annotations.readOnlyHint is True and t.annotations.openWorldHint is False

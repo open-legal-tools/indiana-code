@@ -160,10 +160,11 @@ def test_case_cite_normalize_and_extract():
     assert case_cites.normalize_docket("No. 22A-CT-0925") == "22A-CT-925"
     assert case_cites.docket_key("22A-CT-925") == "docket|22A-CT-925"
     assert case_cites.harvard_cap_id_from_filepath("law.free.cap.ne2d.848/341.8409796.json") == "8409796"
-    text = "Cited 848 N.E.2d 341 and again 848 N.E.2d 341. Also No. 22A-CT-925 (Ind. Ct. App.). Bare 1 U.S. 1 stays out of the regex. Pinpoint 848 N.E.2d at 344 is not a first-page key."
+    text = "Cited 848 N.E.2d 341 and again 848 N.E.2d 341. Also No. 22A-CT-925 (Ind. Ct. App.). 17 U.S.C. § 1983 is a statute. Pinpoint 848 N.E.2d at 344 is not a first-page key."
     assert case_cites.extract_reporter_keys(text).count("ne2d|848|341") == 2
     assert "ne2d|848|344" not in case_cites.extract_reporter_keys(text)
     assert case_cites.extract_docket_keys(text) == ["docket|22A-CT-925"]
+    assert "us|" not in " ".join(case_cites.extract_reporter_keys(text))
 
 
 def test_ingest_case_citations_resolves_unique_keys(tmp_path):
@@ -229,3 +230,84 @@ def test_ingest_case_citations_resolves_unique_keys(tmp_path):
     case = tools.get_case(conn, "cited")
     assert case["citing_this"] == 2 and case["cited_by_this"] == 0
     assert any("848" in c for c in case["reporter_cites"])
+    unresolved = tools.cases_cited_in(conn, "citing")["unresolved"]
+    assert any(r["cite_key"] == "us|1|1" for r in unresolved)
+
+
+def test_indigo_shaped_federal_and_parenthetical_extract():
+    from indiana_law import case_cites
+
+    # Bandido's-style parallel SCOTUS + cramped 7th Cir. / N.D. Ind.
+    bandidos = (
+        "New York Times Co. v. Sullivan, 376 U.S. 254, 269, 84 S.Ct. 710, "
+        "11 L.Ed.2d 686 (1964). See Chang, 20 F.3d 255, 262 (7th Cir.1994); "
+        "Gintert v. Howard Publications, Inc., 565 F.Supp. 829, 838-39 (N.D.Ind.1983)."
+    )
+    keys = case_cites.extract_reporter_keys(bandidos)
+    assert "us|376|254" in keys
+    assert "sct|84|710" in keys
+    assert "led2d|11|686" in keys
+    assert "us|376|84" not in keys
+    assert "f3d|20|255" in keys
+    assert "fsupp|565|829" in keys
+    cites = {c["cite_key"]: c for c in case_cites.extract_cites(bandidos)}
+    assert cites["f3d|20|255"]["court"] == "7th Cir."
+    assert cites["f3d|20|255"]["year"] == "1994"
+    assert cites["fsupp|565|829"]["court"] == "N.D. Ind."
+    assert cites["fsupp|565|829"]["year"] == "1983"
+
+    # Reever: 7th Cir. + S.D. Ind. Westlaw slip + SCOTUS year-only paren.
+    reever = (
+        "aff’d, 990 F.3d 565 (7th Cir. 2021), cert. denied. "
+        "See 2020 WL 1149595 (S.D. Ind. Mar. 10, 2020) and 520 U.S. 564, 592 (1997)."
+    )
+    cites = {c["cite_key"]: c for c in case_cites.extract_cites(reever)}
+    assert cites["f3d|990|565"]["court"] == "7th Cir." and cites["f3d|990|565"]["year"] == "2021"
+    assert cites["wl|2020|1149595"]["court"] == "S.D. Ind." and cites["wl|2020|1149595"]["year"] == "2020"
+    assert cites["us|520|564"]["year"] == "1997"
+
+    # Hunter Warfield: F.4th, F. Supp. 2d, sister circuit, W.Va.
+    hunter = (
+        "27 F.4th 544, 550 (7th Cir. 2022); 530 U.S. 15, 20-21 (2000); "
+        "725 F.Supp. 406, 412 (N.D. Ind. 1989); 706 F.Supp.2d 916, 925 (E.D. Wis. 2010); "
+        "399 S.E.2d 694 (W.Va. 1990); 947 F.3d 735 (11th Cir. 2020)."
+    )
+    cites = {c["cite_key"]: c for c in case_cites.extract_cites(hunter)}
+    assert cites["f4th|27|544"]["court"] == "7th Cir."
+    assert cites["fsupp|725|406"]["court"] == "N.D. Ind."
+    assert cites["fsupp2d|706|916"]["court"] == "E.D. Wis."
+    assert cites["se2d|399|694"]["court"] == "W.Va."
+    assert cites["f3d|947|735"]["court"] == "11th Cir."
+    assert case_cites.normalize_court("seventh circuit") == "7th Cir."
+    assert case_cites.normalize_court("2d. Cir.") == "2d Cir."
+    assert case_cites.parse_court_year("7th Cir. 2021") == ("7th Cir.", "2021")
+    assert case_cites.parse_court_year("N.D. Ind. 2019") == ("N.D. Ind.", "2019")
+    assert case_cites.parse_court_year("West 2020") is None
+    assert case_cites.parse_court_year("Burns 2019") is None
+    assert not any(c["court"] in {"West.", "Burns.", "Eff.", "Supp."} for c in case_cites.extract_parentheticals(
+        "(West 2020) (Burns 2019) (Eff. 2017) (Supp. 2021) (7th Cir. 2021)"
+    ))
+
+
+def test_cases_citing_unresolved_and_court_year(tmp_path):
+    from indiana_law import case_cites
+
+    db = str(tmp_path / "outbound.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("reever", "2024-01-10", "aff’d, 990 F.3d 565 (7th Cir. 2021). See 2020 WL 1149595 (S.D. Ind. Mar. 10, 2020)."),
+        _cluster("hunter", "2026-09-30", "27 F.4th 544, 550 (7th Cir. 2022) and 725 F.Supp. 406 (N.D. Ind. 1989)."),
+        _cluster("local", "2020-03-01", "We follow Henderson, 848 N.E.2d 341 (Ind. 2006)."),
+    ])
+    stats = case_cites.ingest_case_citations(conn, "", "")
+    assert stats["outbound_rows"] >= 3
+    seventh = tools.cases_citing_court(conn, "7th Cir.", "2021")
+    assert {r["cluster_id"] for r in seventh["results"]} == {"reever"}
+    assert any("not a citator" in f for f in seventh["flags"])
+    nd = tools.cases_citing_court(conn, "northern district of indiana")
+    assert {r["cluster_id"] for r in nd["results"]} == {"hunter"}
+    mention = tools.cases_citing_case(conn, "990 F.3d 565")
+    assert mention["cluster_id"] is None and mention.get("resolved") is False
+    assert {r["cluster_id"] for r in mention["results"]} == {"reever"}
+    via_paren = tools.cases_citing_case(conn, "7th Cir. 2021")
+    assert {r["cluster_id"] for r in via_paren["results"]} == {"reever"}

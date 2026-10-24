@@ -522,6 +522,11 @@ def _has_case_mentions(conn) -> bool:
     return bool(row) and conn.execute("SELECT 1 FROM case_mention LIMIT 1").fetchone() is not None
 
 
+def _has_case_outbound(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_outbound'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_outbound LIMIT 1").fetchone() is not None
+
+
 def resolve_case_query(conn, query: str) -> dict:
     """cluster_id, '848 N.E.2d 341', or '22A-CT-925' → cluster ids. Ambiguous keys stay listed."""
     q = (query or "").strip()
@@ -586,6 +591,11 @@ def cases_citing_case(conn, query, court=None, after=None, before=None, limit=25
         out["flags"] = flags + ["citation matches more than one cluster in this extract; not resolved"]
         return out
     if not resolved["cluster_ids"]:
+        court_year = case_cites.parse_court_year(resolved["query"])
+        if court_year:
+            return cases_citing_court(conn, court_year[0], court_year[1], court, after, before, limit)
+        if resolved["cite_key"] and _has_case_outbound(conn):
+            return _cases_citing_unresolved(conn, resolved, court, after, before, limit, flags)
         out["flags"] = flags + ["no cluster matches this id, reporter cite, or case number"]
         return out
     if not _has_case_mentions(conn):
@@ -689,5 +699,155 @@ def cases_cited_in(conn, query, limit=25):
         flags.append(f"{total} cited clusters indexed; showing {len(out['results'])}")
     if not out["results"]:
         flags.append("no indexed case citations in this opinion")
+    if _has_case_outbound(conn):
+        resolved_keys = {
+            row[0]
+            for row in conn.execute(
+                "SELECT cite_key FROM case_cite WHERE cluster_id IN "
+                "(SELECT cited_id FROM case_mention WHERE citing_id=?)",
+                (cid,),
+            )
+        }
+        unresolved = [
+            {
+                "cite_key": r["cite_key"],
+                "raw_cite": r["raw_cite"],
+                "reporter": r["reporter"],
+                "court": r["court"],
+                "year": r["year"],
+                "mention_count": r["mention_count"],
+                "resolved": False,
+            }
+            for r in conn.execute(
+                "SELECT cite_key, raw_cite, reporter, court, year, mention_count "
+                "FROM case_outbound WHERE citing_id=? AND cite_key NOT LIKE 'paren|%' "
+                "ORDER BY mention_count DESC",
+                (cid,),
+            )
+            if r["cite_key"] not in resolved_keys
+        ]
+        out["unresolved"] = unresolved[:limit]
+        if unresolved:
+            flags.append(
+                f"{len(unresolved)} outbound reporter cites are not in this Indiana extract "
+                "(federal, sister-state, or unknown); not resolved"
+            )
+    out["flags"] = flags
+    return out
+
+
+def _cases_citing_unresolved(conn, resolved, court, after, before, limit, flags):
+    """Indiana opinions that mention a reporter cite we do not have a cluster for."""
+    key = resolved["cite_key"]
+    out = {
+        "query": resolved["query"],
+        "cite_key": key,
+        "cluster_id": None,
+        "resolved": False,
+        "results": [],
+        "source": CASE_SOURCE,
+        **_assurance(conn),
+    }
+    flags = list(flags) + [
+        "cited opinion is not in this Indiana extract; text mentions only; not a citator",
+    ]
+    sql = (
+        "SELECT SUM(o.mention_count) AS mention_count, 'unresolved' AS cite_kind, "
+        "MAX(o.as_of) AS as_of, "
+        "c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, "
+        "c.docket_id, c.precedential_status, c.has_opinion_text "
+        "FROM case_outbound o JOIN case_cluster c ON c.cluster_id=o.citing_id "
+        "WHERE o.cite_key=?"
+    )
+    args: list = [key]
+    if court:
+        sql += " AND c.court_id=?"
+        args.append(court if court in COURTS else court)
+    if after:
+        sql += " AND c.date_filed>=?"
+        args.append(after)
+    if before:
+        sql += " AND c.date_filed<=?"
+        args.append(before)
+    sql += " GROUP BY c.cluster_id ORDER BY c.date_filed DESC LIMIT ?"
+    args.append(limit)
+    rows = list(conn.execute(sql, args))
+    out["results"] = [_case_card(r) for r in rows]
+    total = conn.execute(
+        "SELECT count(DISTINCT citing_id) FROM case_outbound WHERE cite_key=?", (key,)
+    ).fetchone()[0]
+    out["match_count"] = len(out["results"])
+    out["indexed_mention_count"] = total
+    if total > len(out["results"]):
+        flags.append(f"{total} opinions mention this cite; showing {len(out['results'])}")
+    if not out["results"]:
+        flags.append("no indexed opinion mentions this reporter cite")
+    out["flags"] = flags
+    return out
+
+
+def cases_citing_court(conn, court, year=None, citing_court=None, after=None, before=None, limit=25):
+    """Indiana opinions whose text has a (court year) parenthetical. Not a citator."""
+    limit = max(1, min(int(limit), 50))
+    norm = case_cites.normalize_court(court)
+    year = str(year or "").strip()
+    out = {
+        "court": norm or (court or "").strip(),
+        "year": year or None,
+        "results": [],
+        "source": CASE_SOURCE,
+        **_assurance(conn),
+    }
+    flags = [
+        "text matches of an Indigo-style (court year) parenthetical; not a citator; not treatment; not good law",
+        "unofficial CourtListener extract; not legal advice",
+        "the cited court is usually not in this Indiana extract",
+    ]
+    if not norm:
+        out["flags"] = flags + ["empty court"]
+        return out
+    if not _has_cases(conn):
+        out["flags"] = flags + ["no caselaw loaded"]
+        return out
+    if not _has_case_outbound(conn):
+        out["flags"] = flags + ["no outbound cites indexed; run indiana_law.cli ingest-case-citations"]
+        return out
+    sql = (
+        "SELECT SUM(o.mention_count) AS mention_count, 'parenthetical' AS cite_kind, "
+        "MAX(o.as_of) AS as_of, "
+        "c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, "
+        "c.docket_id, c.precedential_status, c.has_opinion_text "
+        "FROM case_outbound o JOIN case_cluster c ON c.cluster_id=o.citing_id "
+        "WHERE o.court=?"
+    )
+    args: list = [norm]
+    if year:
+        sql += " AND o.year=?"
+        args.append(year)
+    if citing_court:
+        sql += " AND c.court_id=?"
+        args.append(citing_court if citing_court in COURTS else citing_court)
+    if after:
+        sql += " AND c.date_filed>=?"
+        args.append(after)
+    if before:
+        sql += " AND c.date_filed<=?"
+        args.append(before)
+    sql += " GROUP BY c.cluster_id ORDER BY c.date_filed DESC LIMIT ?"
+    args.append(limit)
+    rows = list(conn.execute(sql, args))
+    out["results"] = [_case_card(r) for r in rows]
+    count_sql = "SELECT count(DISTINCT citing_id) FROM case_outbound WHERE court=?"
+    count_args: list = [norm]
+    if year:
+        count_sql += " AND year=?"
+        count_args.append(year)
+    total = conn.execute(count_sql, count_args).fetchone()[0]
+    out["match_count"] = len(out["results"])
+    out["indexed_mention_count"] = total
+    if total > len(out["results"]):
+        flags.append(f"{total} opinions mention ({norm}{(' ' + year) if year else ''}); showing {len(out['results'])}")
+    if not out["results"]:
+        flags.append("no indexed opinion has this court/year parenthetical")
     out["flags"] = flags
     return out

@@ -117,7 +117,8 @@ def main(argv=None) -> int:
             f"{stats['mention_pairs']} citing/cited pairs; "
             f"resolved {stats['resolved_cites']}; "
             f"ambiguous {stats['ambiguous_cites']}; "
-            f"unknown {stats['unknown_cites']}"
+            f"unknown {stats['unknown_cites']}; "
+            f"outbound {stats.get('outbound_rows', 0)}"
         )
     else:
         conn = store.connect(args.db)

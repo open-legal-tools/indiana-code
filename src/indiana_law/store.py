@@ -76,6 +76,20 @@ CREATE TABLE IF NOT EXISTS case_mention(
   PRIMARY KEY(citing_id, cited_id));
 CREATE INDEX IF NOT EXISTS ix_case_mention_cited ON case_mention(cited_id, as_of);
 CREATE INDEX IF NOT EXISTS ix_case_mention_citing ON case_mention(citing_id);
+CREATE TABLE IF NOT EXISTS case_outbound (
+  citing_id TEXT NOT NULL,
+  cite_key TEXT NOT NULL,
+  reporter TEXT,
+  volume TEXT,
+  page TEXT,
+  court TEXT NOT NULL DEFAULT '',
+  year TEXT NOT NULL DEFAULT '',
+  raw_cite TEXT,
+  mention_count INTEGER NOT NULL,
+  as_of TEXT,
+  PRIMARY KEY (citing_id, cite_key, court, year));
+CREATE INDEX IF NOT EXISTS ix_outbound_court_year ON case_outbound(court, year);
+CREATE INDEX IF NOT EXISTS ix_outbound_key ON case_outbound(cite_key);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
@@ -216,6 +230,18 @@ def replace_case_mentions(conn, rows) -> int:
     )
     conn.commit()
     return conn.execute("SELECT count(*) FROM case_mention").fetchone()[0]
+
+
+def replace_case_outbound(conn, rows) -> int:
+    conn.execute("DELETE FROM case_outbound")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_outbound("
+        "citing_id, cite_key, reporter, volume, page, court, year, raw_cite, mention_count, as_of) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_outbound").fetchone()[0]
 
 
 def finalize_cases(conn) -> None:
