@@ -8,9 +8,12 @@ import sys
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
-from . import tools
+from . import tools, web
 
 INSTRUCTIONS = (
     "Dated, unofficial copies of the Indiana Code from the General Assembly's annual downloads (2017 to 2026), with effective-dated "
@@ -18,7 +21,8 @@ INSTRUCTIONS = (
     "such as '7.1-1-1-1' are normal). Use ic_search to find sections, ic_resolve_citation for citation strings, ic_get_section for text "
     "as of a date, ic_get_versions for history, ic_browse to explore, ic_get_act for what a public law changed. Companion PDFs from the "
     "same downloads page (Constitution, Non-code statutes, full Acts text, optional pre-2017 archive titles) use ic_list_companion, "
-    "ic_search_companion and ic_get_companion when loaded. Every answer includes its snapshot, dates and flags. Always show the user "
+    "ic_search_companion and ic_get_companion when loaded. Indiana appellate clusters from a CourtListener bulk extract "
+    "use case_search and case_get. ic_cases_citing lists opinions whose text mentions a Code section (text matches only; not a citator, not treatment, not good law). cases_citing_case lists opinions whose text cites a case by reporter or Rule 22 case number; federal and sister-state reporter cites that are not in this extract stay unresolved text mentions. cases_cited_in lists cases cited in one opinion (text matches only; not a citator, not treatment, not good law). cases_citing_court lists Indiana opinions whose text has a (court year) parenthetical such as (7th Cir. 2021) or (N.D. Ind. 2019). case_search/case_get include a text-classified decision_form (memorandum vs opinion) when indexed; that is not official publication status. Opinion bodies come from Harvard CAP and official Indiana court PDFs when present; not a complete set. Every answer includes its snapshot, dates and flags. Always show the user "
     "the source date and say the copy is unofficial; this tool provides no legal advice."
 )
 
@@ -32,17 +36,78 @@ def _connect():
     return conn
 
 
+_PUBLIC_HOST_ALIASES = (
+    "mcp.openindianalaw.org",
+    "mcp.openindianalaw.com",
+    "openindianalaw.org",
+    "www.openindianalaw.org",
+    "openindianalaw.com",
+    "www.openindianalaw.com",
+    "mcp.indianacle.com",
+)
+
+
+def _transport_security(public_host: str) -> TransportSecuritySettings:
+    hosts = {
+        "127.0.0.1",
+        "127.0.0.1:*",
+        "localhost",
+        "localhost:*",
+        "[::1]",
+        "[::1]:*",
+        public_host,
+        f"{public_host}:*",
+        *_PUBLIC_HOST_ALIASES,
+        *(f"{alias}:*" for alias in _PUBLIC_HOST_ALIASES),
+    }
+    origins = {
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "http://[::1]:*",
+        f"https://{public_host}",
+        *(f"https://{alias}" for alias in _PUBLIC_HOST_ALIASES),
+    }
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=sorted(hosts),
+        allowed_origins=sorted(origins),
+    )
+
+
 def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
+    public_host = os.environ.get("INDIANA_LAW_PUBLIC_HOST", "mcp.openindianalaw.org")
     mcp = FastMCP(
         "indiana-code",
         instructions=INSTRUCTIONS,
+        website_url=f"https://{public_host}",
         host=host,
         port=port,
         stateless_http=True,
         json_response=True,
+        transport_security=_transport_security(public_host),
     )
     db = conn or _connect()
     ro = dict(readOnlyHint=True, idempotentHint=True, openWorldHint=False, destructiveHint=False)
+
+    @mcp.custom_route("/", methods=["GET"], name="landing")
+    async def landing(_request: Request) -> HTMLResponse:
+        return HTMLResponse(web.landing_html(public_host))
+
+    @mcp.custom_route("/terms", methods=["GET"], name="terms")
+    async def terms(_request: Request) -> HTMLResponse:
+        return HTMLResponse(web.terms_html())
+
+    @mcp.custom_route("/privacy", methods=["GET"], name="privacy")
+    async def privacy(_request: Request) -> HTMLResponse:
+        return HTMLResponse(web.privacy_html())
+
+    @mcp.custom_route("/icon.svg", methods=["GET"], name="icon")
+    async def icon(_request: Request) -> Response:
+        return Response(web.icon_svg(), media_type="image/svg+xml")
+
+    @mcp.custom_route("/health", methods=["GET"], name="health")
+    async def health(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True, "service": "indiana-code", "unofficial": True})
 
     @mcp.tool(title="Search Indiana Code", annotations=ToolAnnotations(title="Search Indiana Code", **ro))
     def ic_search(query: str, as_of: str | None = None, title: str | None = None, limit: int = 10) -> dict[str, Any]:
@@ -92,6 +157,36 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
     def ic_get_companion(doc_id: str, page: int = 1) -> dict[str, Any]:
         """One page of a companion document (doc_id like 'constitution-2026' or 'acts-2026'). Pages are 1-based."""
         return tools.get_companion(db, doc_id, page)
+
+    @mcp.tool(title="Search Indiana cases", annotations=ToolAnnotations(title="Search Indiana cases", **ro))
+    def case_search(query: str, court: str | None = None, after: str | None = None, before: str | None = None, form: str | None = None, limit: int = 10) -> dict[str, Any]:
+        """Search Indiana Supreme Court, Court of Appeals, and Tax Court clusters from a CourtListener extract. court is ind, indctapp, or indtc. form is memorandum or opinion when decision forms are indexed (text classification, not official status). Most hits are metadata only."""
+        return tools.search_cases(db, query, court, after, before, form, limit)
+
+    @mcp.tool(title="Get an Indiana case cluster", annotations=ToolAnnotations(title="Get an Indiana case cluster", **ro))
+    def case_get(cluster_id: str) -> dict[str, Any]:
+        """One Indiana opinion cluster by CourtListener cluster id. Includes opinion text only when the extract has a body."""
+        return tools.get_case(db, cluster_id)
+
+    @mcp.tool(title="Cases mentioning an Indiana Code section", annotations=ToolAnnotations(title="Cases mentioning an Indiana Code section", **ro))
+    def ic_cases_citing(section_id: str, court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 25) -> dict[str, Any]:
+        """Opinions whose text mentions this Code section (IC / Ind. Code citations). section_id like '35-42-1-1'. This is a text-mention index, not a citator: it does not say the case construed, applied, or followed the statute, and it is not a good-law signal. court is ind, indctapp, or indtc."""
+        return tools.cases_citing(db, section_id, court, after, before, limit)
+
+    @mcp.tool(title="Cases citing a case", annotations=ToolAnnotations(title="Cases citing a case", **ro))
+    def cases_citing_case(query: str, court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 25) -> dict[str, Any]:
+        """Opinions whose text cites this case. query is a CourtListener cluster id, a reporter cite such as '848 N.E.2d 341', or an Indiana case number such as '22A-CT-925'. Text-mention index only: not a citator, not treatment, not good law. court is ind, indctapp, or indtc."""
+        return tools.cases_citing_case(db, query, court, after, before, limit)
+
+    @mcp.tool(title="Cases cited in an opinion", annotations=ToolAnnotations(title="Cases cited in an opinion", **ro))
+    def cases_cited_in(query: str, limit: int = 25) -> dict[str, Any]:
+        """Cases this opinion's text cites, resolved against Harvard reporter identifiers and Rule 22 case numbers. query is a cluster id, reporter cite, or case number. Unresolved federal and sister-state reporter mentions are listed separately. Text-mention index only: not a citator, not treatment, not good law."""
+        return tools.cases_cited_in(db, query, limit)
+
+    @mcp.tool(title="Cases citing a court and year", annotations=ToolAnnotations(title="Cases citing a court and year", **ro))
+    def cases_citing_court(court: str, year: str | None = None, citing_court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 25) -> dict[str, Any]:
+        """Indiana opinions whose text has a (court year) parenthetical. court is an Indigo-style abbreviation such as '7th Cir.', 'N.D. Ind.', 'S.D. Ind.', or 'Ill.'. year is optional (2021). citing_court filters the citing Indiana court (ind, indctapp, indtc). Text-mention index only: not a citator, not treatment, not good law."""
+        return tools.cases_citing_court(db, court, year, citing_court, after, before, limit)
 
     return mcp
 

@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-from . import PARSER_VERSION, acts, companion, parse_code, store
+from . import PARSER_VERSION, acts, caselaw, case_cites, companion, parse_code, store
 
 
 def main(argv=None) -> int:
@@ -23,9 +23,32 @@ def main(argv=None) -> int:
     d.add_argument("db")
     d.add_argument("--zip", action="append", default=[], dest="zips", help="Official HTML zip containing Additional_Documents_PDF")
     d.add_argument("--pdf", action="append", default=[], dest="pdfs", help="A single companion or archive-title PDF")
+    d.add_argument("--pdf-dir", action="append", default=[], dest="pdf_dirs", help="Directory of companion or archive-title PDFs")
     d.add_argument("--year", type=int, default=None)
-    d.add_argument("--kind", default=None, help="constitution, noncode, acts, or archive_title")
+    d.add_argument("--kind", default=None, help="constitution, noncode, acts, archive_title, court_rules, or historical_table")
     d.add_argument("--extract-dir", default="data/companion")
+    e = sub.add_parser("ingest-caselaw", help="Index the local CourtListener Indiana extract")
+    e.add_argument("db")
+    e.add_argument("--clusters", required=True)
+    e.add_argument("--opinions", required=True)
+    e.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
+    f = sub.add_parser(
+        "ingest-statute-mentions",
+        help="Index IC / Ind. Code mentions in opinion text (not a citator)",
+    )
+    f.add_argument("db")
+    g = sub.add_parser(
+        "ingest-decision-forms",
+        help="Classify memorandum vs opinion from opinion text (not official status)",
+    )
+    g.add_argument("db")
+    h = sub.add_parser(
+        "ingest-case-citations",
+        help="Index reporter/docket identifiers and case-to-case text cites (not a citator)",
+    )
+    h.add_argument("db")
+    h.add_argument("--clusters", required=True, help="CourtListener Indiana clusters JSONL")
+    h.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -48,13 +71,55 @@ def main(argv=None) -> int:
                 added = store.add_companion_pages(conn, pages)
                 print(pdf, added)
                 n += added
-        for pdf in args.pdfs:
+        pdfs = list(args.pdfs)
+        for d in args.pdf_dirs:
+            pdfs.extend(sorted(
+                os.path.join(d, name) for name in os.listdir(d)
+                if name.lower().endswith(".pdf")
+            ))
+        for pdf in pdfs:
             pages = companion.pages_from_pdf(pdf, kind=args.kind, year=args.year)
             added = store.add_companion_pages(conn, pages)
             print(pdf, added)
             n += added
         store.finalize_companion(conn)
         print("companion pages:", n)
+    elif args.cmd == "ingest-caselaw":
+        conn = store.connect(args.db)
+        opinions = caselaw.load_opinions(args.opinions)
+        harvard = caselaw.load_harvard(args.harvard) if args.harvard else {}
+        n = store.add_case_clusters(conn, caselaw.cluster_records(args.clusters, opinions, harvard))
+        store.finalize_cases(conn)
+        with_text = conn.execute("SELECT count(*) FROM case_cluster WHERE has_opinion_text=1").fetchone()[0]
+        print(f"case clusters: {n}; with opinion text: {with_text}")
+    elif args.cmd == "ingest-statute-mentions":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_statute_mentions(conn)
+        print(
+            f"statute mentions: scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['opinions_with_mentions']} with IC cites; "
+            f"{stats['mention_pairs']} section/opinion pairs"
+        )
+    elif args.cmd == "ingest-decision-forms":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_decision_forms(conn)
+        print(
+            f"decision forms: {stats['clusters']} clusters; "
+            f"{stats['counts']}; disagrees_with_source={stats['disagrees_with_source']}"
+        )
+    elif args.cmd == "ingest-case-citations":
+        conn = store.connect(args.db)
+        stats = case_cites.ingest_case_citations(conn, args.clusters, args.harvard)
+        print(
+            f"case citations: {stats['cite_rows']} identifiers "
+            f"({stats['unique_cite_keys']} unique keys); "
+            f"scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['mention_pairs']} citing/cited pairs; "
+            f"resolved {stats['resolved_cites']}; "
+            f"ambiguous {stats['ambiguous_cites']}; "
+            f"unknown {stats['unknown_cites']}; "
+            f"outbound {stats.get('outbound_rows', 0)}"
+        )
     else:
         conn = store.connect(args.db)
         for spec in args.snapshot:

@@ -37,12 +37,68 @@ CREATE TABLE IF NOT EXISTS companion_page(
   page INTEGER NOT NULL, text TEXT NOT NULL,
   UNIQUE(doc_id, page));
 CREATE INDEX IF NOT EXISTS ix_comp_kind ON companion_page(kind, year);
+CREATE TABLE IF NOT EXISTS case_cluster(
+  cluster_id TEXT PRIMARY KEY,
+  court_id TEXT, court TEXT, case_name TEXT, date_filed TEXT, docket_id TEXT,
+  precedential_status TEXT, slug TEXT, citation_count INTEGER,
+  summary TEXT, headmatter TEXT, opinion_id TEXT, opinion_text TEXT,
+  text_source TEXT, has_opinion_text INTEGER NOT NULL DEFAULT 0,
+  search_text TEXT);
+CREATE INDEX IF NOT EXISTS ix_case_court ON case_cluster(court_id, date_filed);
+CREATE TABLE IF NOT EXISTS statute_mention(
+  cluster_id TEXT NOT NULL,
+  section_id TEXT NOT NULL,
+  mention_count INTEGER NOT NULL,
+  as_of TEXT,
+  code_resolved INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(cluster_id, section_id));
+CREATE INDEX IF NOT EXISTS ix_mention_section ON statute_mention(section_id, as_of);
+CREATE TABLE IF NOT EXISTS case_form(
+  cluster_id TEXT PRIMARY KEY,
+  decision_form TEXT NOT NULL,
+  citability TEXT,
+  case_number_in_text TEXT,
+  disagrees_with_source INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_case_form ON case_form(decision_form, citability);
+CREATE TABLE IF NOT EXISTS case_cite(
+  cite_key TEXT NOT NULL,
+  cluster_id TEXT NOT NULL,
+  cite_kind TEXT NOT NULL,
+  raw_cite TEXT,
+  PRIMARY KEY(cite_key, cluster_id));
+CREATE INDEX IF NOT EXISTS ix_case_cite_cluster ON case_cite(cluster_id);
+CREATE TABLE IF NOT EXISTS case_mention(
+  citing_id TEXT NOT NULL,
+  cited_id TEXT NOT NULL,
+  mention_count INTEGER NOT NULL,
+  cite_kind TEXT NOT NULL,
+  as_of TEXT,
+  PRIMARY KEY(citing_id, cited_id));
+CREATE INDEX IF NOT EXISTS ix_case_mention_cited ON case_mention(cited_id, as_of);
+CREATE INDEX IF NOT EXISTS ix_case_mention_citing ON case_mention(citing_id);
+CREATE TABLE IF NOT EXISTS case_outbound (
+  citing_id TEXT NOT NULL,
+  cite_key TEXT NOT NULL,
+  reporter TEXT,
+  volume TEXT,
+  page TEXT,
+  court TEXT NOT NULL DEFAULT '',
+  year TEXT NOT NULL DEFAULT '',
+  raw_cite TEXT,
+  mention_count INTEGER NOT NULL,
+  as_of TEXT,
+  PRIMARY KEY (citing_id, cite_key, court, year));
+CREATE INDEX IF NOT EXISTS ix_outbound_court_year ON case_outbound(court, year);
+CREATE INDEX IF NOT EXISTS ix_outbound_key ON case_outbound(cite_key);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
 """
 COMPANION_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS companion_fts USING fts5(text, content='companion_page', content_rowid='pid', tokenize='porter unicode61');
+"""
+CASE_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS case_fts USING fts5(search_text, content='case_cluster', content_rowid='rowid', tokenize='porter unicode61');
 """
 
 
@@ -112,6 +168,85 @@ def finalize(conn) -> None:
 def finalize_companion(conn) -> None:
     conn.executescript(COMPANION_FTS)
     conn.execute("INSERT INTO companion_fts(companion_fts) VALUES('rebuild')")
+    conn.commit()
+
+
+def add_case_clusters(conn, records) -> int:
+    n = 0
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_cluster VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            (
+                r["cluster_id"], r["court_id"], r["court"], r["case_name"], r["date_filed"],
+                r["docket_id"], r["precedential_status"], r["slug"], r["citation_count"],
+                r["summary"], r["headmatter"], r["opinion_id"], r["opinion_text"],
+                r["text_source"], r["has_opinion_text"], r["search_text"],
+            )
+            for r in records
+        ),
+    )
+    n = conn.execute("SELECT count(*) FROM case_cluster").fetchone()[0]
+    return n
+
+
+def replace_case_forms(conn, rows) -> int:
+    conn.execute("DELETE FROM case_form")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_form").fetchone()[0]
+
+
+def replace_statute_mentions(conn, rows) -> int:
+    conn.execute("DELETE FROM statute_mention")
+    conn.executemany(
+        "INSERT OR REPLACE INTO statute_mention(cluster_id, section_id, mention_count, as_of, code_resolved) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM statute_mention").fetchone()[0]
+
+
+def replace_case_cites(conn, rows) -> int:
+    conn.execute("DELETE FROM case_cite")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES (?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_cite").fetchone()[0]
+
+
+def replace_case_mentions(conn, rows) -> int:
+    conn.execute("DELETE FROM case_mention")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_mention(citing_id, cited_id, mention_count, cite_kind, as_of) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_mention").fetchone()[0]
+
+
+def replace_case_outbound(conn, rows) -> int:
+    conn.execute("DELETE FROM case_outbound")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_outbound("
+        "citing_id, cite_key, reporter, volume, page, court, year, raw_cite, mention_count, as_of) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_outbound").fetchone()[0]
+
+
+def finalize_cases(conn) -> None:
+    conn.executescript(CASE_FTS)
+    conn.execute("INSERT INTO case_fts(case_fts) VALUES('rebuild')")
     conn.commit()
 
 

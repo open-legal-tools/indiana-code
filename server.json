@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "org.openindianalaw/indiana-code",
+  "title": "Indiana Code",
+  "description": "Search unofficial Indiana Code, IGA companions, and appellate cases. Not legal advice.",
+  "version": "0.1.0",
+  "websiteUrl": "https://mcp.openindianalaw.org",
+  "repository": {
+    "url": "https://github.com/open-indiana-law/indiana-code",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://mcp.openindianalaw.org/icon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.openindianalaw.org/mcp"
+    }
+  ]
+}

@@ -46,7 +46,7 @@ agents first and people second, built mostly by agents under light human supervi
 |---|---|---|---|
 | L0 source | official ZIPs, bulk files, ontology files with hashes and dates | immutable | `source_file` |
 | L1 parsed | sections and versions; opinions, components, paragraphs, offsets | rebuildable | `section_version`, `opinion`, `opinion_span` |
-| L2 deterministic facts | citation mentions (eyecite plus Indiana statute pattern), CourtListener citation-map edges, act clauses, court and date metadata, disposition and standard of review by rule | rebuildable | `citation_mention`, `act_clause`, `edge(kind=rule)` |
+| L2 deterministic facts | citation mentions (Indiana reporter / Rule 22 / statute patterns), act clauses, court and date metadata, disposition and standard of review by rule | rebuildable | `citation_mention`, `act_clause`, `edge(kind=rule)` |
 | L3 ontology tags | class references (IRI plus id suffix plus label plus ontology commit) | regenerable | `tag` |
 | L4 AI annotations | proposition cards, proposed relations, similarity edges | regenerable, never overwrites L1 to L3 | `annotation`, `edge(kind=ai)`, `evidence` |
 | L5 review | verdicts and approvals | append-only | `review` |
@@ -65,8 +65,8 @@ Every release is a versioned bundle: JSONL canonical files, a SQLite build, a ma
 
 1. **Source:** CourtListener bulk files (public domain mark; terms read 2026-10-10). Record snapshot date and hashes. FCRA-use restriction and "attribute honestly" go into our terms.
 2. **Select:** Indiana dockets (`ind`, `indctapp`, `indtc`), clusters, then stream the 55 GB opinions file for those clusters; keep the text and metadata; store `data_through` per court.
-3. **Parse components** (rules first, then model-assisted): caption, panel, procedural history, issues, facts, standard of review, analysis, holding statements, disposition, concurrence, dissent, per curiam; every component a span with offsets. **Also parse the decision form and the case number from the text:** the top-of-opinion disclaimer language and the "Memorandum Decision" or "Opinion" wording (and the footer, which carries the case number) set `decision_form` and `citability` (Danielle's hypothesis that memoranda are present but labeled published; to be tested first, see `docs/IDEAS.md`). Normalize case numbers to a canonical form. Publication status and memorandum decisions labeled (App. R. 65: memoranda issued on or after 2023-01-01 may be cited for persuasive value; *agent-reported*).
-4. **Citations:** eyecite for case citations; our Indiana Code pattern for statutes (eyecite's Indiana statute coverage is unverified); resolve statutes to a section id **and a version by the opinion's date**; resolve cases through the citation map.
+3. **Parse components** (rules first, then model-assisted): caption, panel, procedural history, issues, facts, standard of review, analysis, holding statements, disposition, concurrence, dissent, per curiam; every component a span with offsets. **Also parse the decision form and the case number from the text:** the top-of-opinion disclaimer language and the "Memorandum Decision" or "Opinion" wording (and the footer, which carries the case number) set `decision_form` and `citability` (Danielle's hypothesis that memoranda are present but labeled published; to be tested first, see `docs/IDEAS.md`). Normalize case numbers to a canonical form. Publication status and memorandum decisions labeled (App. R. 65: memoranda issued on or after 2023-01-01 may be cited for persuasive value; *agent-reported*). **Started 2026-10-23:** `case_form` classifies `memorandum` / `opinion` / `unlabeled` from the slip text and derives `citability`; it flags disagreement with CourtListener `precedential_status`. Not a full component parse.
+4. **Citations:** our Indiana reporter and Rule 22 patterns for cases; our Indiana Code pattern for statutes; resolve statutes to a section id **and a version by the opinion's date**; resolve cases through the identifier index. Do not take on Free Law Project libraries. **Started 2026-10-23:** `statute_mention` / `ic_cases_citing`, then `case_cite` / `case_mention` / `cases_citing_case` / `cases_cited_in`. **2026-10-23 evening:** extractor also reads Indigo T1.1 / T3 reporters and R12 `(court year)` parentheticals; federal and sister-state cites stay unresolved outbound keys (`cases_citing_court`). Text matches only; not treatment, not a look-alike citator.
 5. **Gap handling:** quarterly bulk lag is bridged by (A) `data_through` flags and a pointer to the courts' opinion pages, (B) an API top-up for new Indiana opinions with an account token (default limits 5 a minute, 50 an hour, 125 a day), (C) later, webhooks. The courts' own endpoint is not used without their permission.
 
 ## 7. The relationship web and "proposition cards" (our headnotes)
@@ -74,7 +74,7 @@ Every release is a versioned bundle: JSONL canonical files, a SQLite build, a ma
 **Edge vocabulary and feasibility** (*agent-reported* plus my judgment):
 | Edge | Tier | Evidence | Default visibility |
 |---|---|---|---|
-| cites_case (citation map, eyecite) | 1 deterministic | map row, mention offsets, depth | shown |
+| cites_case (reporter / Rule 22 text mention) | 1 deterministic | unique identifier match | shown |
 | cites_statute (version by opinion date) | 1 deterministic | mention span, resolved version | shown |
 | disposition (affirmed, reversed...), standard_of_review_applied | 1 rule, then model check | span | shown |
 | construes_statute, applies_statute | 2 model-proposed, quote-anchored | quote naming the section in the same paragraph | shown with "AI-detected, unreviewed" |

@@ -5,7 +5,7 @@ Ideas are logged here so they are not lost. An idea is **not** a plan, a priorit
 ## 2026-10-09 (Danielle): our own annotation layer and a "web" of related authorities
 Our own headnote-style annotations, kept apart from official text, relating statutes to each other and to court cases; over time a constellation of interrelated authorities
 for AI agents and later human readers. First candidates: cross-references already in the Code ("see IC ..."), amending-act links, opinion-to-section citation edges.
-Status: reflected in `docs/SPEC-ROADMAP-v2.md` sections 5 and 7 (proposition cards, tiered edges).
+Status: reflected in `docs/SPEC-ROADMAP-v2.md` sections 5 and 7 (proposition cards, tiered edges). Opinion-to-section text mentions started 2026-10-23 (`statute_mention` / `ic_cases_citing`); not treatment.
 
 ## 2026-10-09 (Danielle): funded digitization of the pre-2017 Code years
 The 2009 to 2016 Code years exist only as PDFs. A funded project (nonprofit grants, a library or school partner) could digitize and parse them. Not pursued now.
@@ -28,7 +28,7 @@ only for Indiana Supreme Court decisions and omit "(Ind. Ct. App.)". She dislike
 - Pinpoint: slip-opinion page or paragraph; whether Indiana opinions carry usable pagination or numbered paragraphs is unchecked.
 - Indiana's own rule already cites memoranda by number (Appellate Rule 22 example, agent-reported: `Steele v. Taber, No. 22A-CT-925 (Ind. Ct. App. Jan. 17, 2023) (mem.)`), so this is close to existing practice.
 - Court filings must follow Rule 22 (agent-reported), so the tool should emit both: our short universal form and a Rule-22-compliant string on request. Do not present the short form as a replacement for filing practice.
-- We would need our own detector for case-number citations inside later opinions, alongside eyecite.
+- We would need our own detector for case-number citations inside later opinions. Started 2026-10-23 without Free Law Project libraries: `case_cites.py` extracts reporter first-pages and Rule 22 numbers.
 **First small test.** Take 200 recent decisions, generate the short form and the machine id, and check that each is unique and resolves back to one record.
 
 ## 2026-10-10 (Danielle): detect memorandum decisions and decision form from the text
@@ -36,3 +36,4 @@ Her hypothesis: memoranda are present in the data but are not "hidden" because t
 "Memorandum Decision" or "Opinion" wording in the footer, which also carries the case number. Consistent with the counts (pre-2021 yearly volumes of 1,900 to 3,800 suggest published decisions plus
 memoranda; post-2022 volumes near 300 suggest published only), but **unconfirmed until the opinion text is extracted.** First test: count opinions containing the memorandum disclaimer, by year and status.
 Recorded as a component-parsing task in `docs/SPEC-ROADMAP-v2.md` phase 2 (decision form and citability fields).
+Started 2026-10-23: `case_form` / `ingest-decision-forms` classifies slip-opinion wording; `case_get` and `case_search` expose `decision_form` and a derived App. R. 65(D) `citability`. Text classification only.
