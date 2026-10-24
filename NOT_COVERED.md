@@ -40,6 +40,12 @@ the official portal begin around 2006.
 `ic_cases_citing` is a text-mention index of IC / Ind. Code citations in those
 opinion bodies. It is not a citator: it does not say a case construed, applied,
 followed, or distinguished a statute, and it is not a “good law” signal.
+`cases_construing` is a narrower index. A construction word (construe,
+interpret, plain language, ambiguous) or an application word (the statute
+applies, or in violation of the cited section) has to sit in the citation's
+sentence, or in the sentence immediately before a short citation sentence.
+The following sentence is not included. Every row is `rule_unreviewed`. No
+model has reviewed them. They are not holdings.
 Mentions without an IC / Ind. Code prefix are not indexed. Structured Code
 resolution is only flagged when the opinion date is in a loaded snapshot year
 and the section id exists in the store.
@@ -58,6 +64,28 @@ KeyCite, not treatment, and not a good-law signal.
 slip opinion (memorandum vs opinion, App. R. 65(D) as a date rule). It is not
 the court’s official publication status. CourtListener `precedential_status`
 sometimes labels memoranda Published (especially 2017–2018).
+
+`disposition` on `case_get` / `case_search` is a rule read of the closing line
+(“Affirmed.”, “Reversed and remanded.”, or a short “we affirm” sentence) in
+the last part of the slip. It is not the court’s official judgment, not
+treatment of any other case, and not a citator. A closing the rule does not
+recognize stays `unlabeled`. “In part” is kept as a flag. Transfer orders
+and disciplinary orders are outside this rule.
+
+`standards` on `case_get`, and the `standard` filter on `case_search`, are
+rule reads of sentences that state a standard of review: de novo, abuse of
+discretion, clearly erroneous, the sufficiency line “we neither reweigh the
+evidence nor judge,” prima facie error, substantial evidence, and arbitrary
+or capricious. A mention that does not state the standard stays out, including
+“there was substantial evidence that” and “the court did not abuse its
+discretion.” This is not a ruling on which standard governs, and an opinion
+can carry more than one.
+
+`separate_writings` on `case_get`, and the `separate` filter on `case_search`,
+read the slip's own vote line that says a judge concurs or dissents "with
+separate opinion." "Without separate opinion," and a sentence about another
+case's separate opinion, stay out. This is not a holding, and it does not
+say the separate writing is right.
 
 ## Not ingested at all
 

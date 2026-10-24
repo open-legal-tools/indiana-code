@@ -24,9 +24,11 @@ is not wired to any database. Use `python -m indiana_law.mcp_server`.
 | `ic_list_companion` | Constitution, Non-code, Acts, archive titles, historical tables, court rules (when loaded) |
 | `ic_search_companion` | Full-text search of those companion PDFs |
 | `ic_get_companion` | One page of a companion PDF |
-| `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present); optional `form` filter |
-| `case_get` | One cluster, with opinion text only when a body was ingested; includes text-classified decision form when indexed |
+| `case_search` | Indiana appellate clusters (Harvard CAP / official court PDFs when present); optional `form`, `disposition`, `standard`, and `separate` filters |
+| `case_get` | One cluster, with opinion text only when a body was ingested; includes text-classified decision form, a rule-read closing disposition, and stated standards of review when indexed |
 | `ic_cases_citing` | Opinions whose text mentions a Code section (not a citator; not treatment) |
+| `cases_construing` | Construction or application signal in the citation sentence, or the sentence that citation supports, status `rule_unreviewed` (not a holding) |
+| `case_get` separate writings | The slip's own "with separate opinion" vote line (`concurs`, `dissents`, in part, in result, transfer dissent, `joins`) |
 | `cases_citing_case` | Opinions whose text cites a case (reporter or Rule 22 number; federal/sister-state cites stay unresolved; not a citator) |
 | `cases_cited_in` | Cases cited in one opinion (resolved Indiana clusters plus unresolved outbound mentions) |
 | `cases_citing_court` | Indiana opinions with a `(court year)` parenthetical such as `(7th Cir. 2021)` or `(N.D. Ind. 2019)` |

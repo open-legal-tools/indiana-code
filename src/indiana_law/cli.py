@@ -49,6 +49,26 @@ def main(argv=None) -> int:
     h.add_argument("db")
     h.add_argument("--clusters", required=True, help="CourtListener Indiana clusters JSONL")
     h.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
+    i = sub.add_parser(
+        "ingest-dispositions",
+        help="Index closing-line dispositions from opinion text (not an official judgment)",
+    )
+    i.add_argument("db")
+    j = sub.add_parser(
+        "ingest-standards",
+        help="Index stated standards of review from opinion text (not a ruling on which standard governs)",
+    )
+    j.add_argument("db")
+    k = sub.add_parser(
+        "ingest-statute-signals",
+        help="Index citation-sentence construction and application signals (not a holding)",
+    )
+    k.add_argument("db")
+    sep = sub.add_parser(
+        "ingest-separate-writings",
+        help="Index slip vote lines that announce a separate opinion (not a holding)",
+    )
+    sep.add_argument("db")
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -119,6 +139,37 @@ def main(argv=None) -> int:
             f"ambiguous {stats['ambiguous_cites']}; "
             f"unknown {stats['unknown_cites']}; "
             f"outbound {stats.get('outbound_rows', 0)}"
+        )
+    elif args.cmd == "ingest-dispositions":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_dispositions(conn)
+        print(
+            f"dispositions: {stats['clusters']} clusters; "
+            f"labeled {stats['labeled']}; {stats['counts']}"
+        )
+    elif args.cmd == "ingest-standards":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_standards(conn)
+        print(
+            f"standards: scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['opinions_with_standards']} with a stated standard; "
+            f"{stats['rows']} rows; {stats['counts']}"
+        )
+    elif args.cmd == "ingest-statute-signals":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_statute_signals(conn)
+        print(
+            f"statute signals: scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['opinions_with_signals']} with a signal; "
+            f"{stats['rows']} rows; {stats['counts']}"
+        )
+    elif args.cmd == "ingest-separate-writings":
+        conn = store.connect(args.db)
+        stats = caselaw.ingest_separate_writings(conn)
+        print(
+            f"separate writings: scanned {stats['opinions_scanned']} opinions; "
+            f"{stats['opinions_with_separate']} with a vote line; "
+            f"{stats['rows']} rows; {stats['counts']}"
         )
     else:
         conn = store.connect(args.db)

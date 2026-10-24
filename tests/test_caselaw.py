@@ -150,6 +150,162 @@ def test_ingest_decision_forms_flags_source_disagreement(tmp_path):
     assert wrong["decision_form"] == "memorandum" and any("Published" in f for f in wrong["flags"])
 
 
+AFFIRM_PROSE = (
+    "We therefore affirm the trial court's judgment. May, J., and Crone, J., concur. "
+    "Court of Appeals of Indiana | Memorandum Decision 22A-JC-1683 | January 4, 2023 Page 11 of 11"
+)
+AFFIRM_LINE = (
+    "[31] Affirmed. Altice, C.J., and Brown, J., concur. "
+    "Court of Appeals of Indiana | Memorandum Decision 22A-PL-1492 | January 9, 2023 Page 20 of 20"
+)
+MIXED_LINE = "[26] Reversed and remanded with instructions. Bailey, J. and Vaidik, J. concur."
+PART_LINE = "[19] Reversed in part. Crone, J., and Weissmann, J., concur."
+THREE_WAY = "Affirmed in part, reversed in part, and remanded."
+NO_DISPOSITION = (
+    "In my view, the jury should be entrusted to assess Dr. Mundt’s testimony together with the other evidence presented at trial. "
+    "Court of Appeals of Indiana | Opinion 22A-CR-1116 | January 9, 2023 Page 20 of 20"
+)
+NEGATIVE = "Accordingly, we do not direct the entry of summary judgment for the Commission at this time."
+
+
+def test_classify_disposition_reads_the_closing_line():
+    prose = caselaw.classify_disposition(AFFIRM_PROSE)
+    assert prose["disposition"] == "affirmed" and prose["method"] == "prose"
+    assert prose["quote"].startswith("We therefore affirm")
+    line = caselaw.classify_disposition(AFFIRM_LINE)
+    assert line["disposition"] == "affirmed" and line["method"] == "closing_line"
+    assert line["quote"].rstrip(".").endswith("Affirmed")
+    mixed = caselaw.classify_disposition(MIXED_LINE)
+    assert mixed["disposition"] == "mixed"
+    assert mixed["labels"] == ["reversed", "remanded"] and mixed["in_part"] is False
+    part = caselaw.classify_disposition(PART_LINE)
+    assert part["disposition"] == "reversed" and part["in_part"] is True
+    three = caselaw.classify_disposition(THREE_WAY)
+    assert three["labels"] == ["affirmed", "reversed", "remanded"] and three["in_part"] is True
+    assert caselaw.classify_disposition(NO_DISPOSITION)["disposition"] == "unlabeled"
+    assert caselaw.classify_disposition(NEGATIVE)["disposition"] == "unlabeled"
+    assert caselaw.classify_disposition("")["method"] == "no_text"
+    buried = "The Supreme Court affirmed the conviction in an earlier case. " + ("analysis " * 40)
+    assert caselaw.classify_disposition(buried)["disposition"] == "unlabeled"
+
+
+def test_ingest_dispositions_on_case_get_and_search(tmp_path):
+    db = str(tmp_path / "disp.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("a", "2023-01-04", "Child was a CHINS. " + AFFIRM_PROSE),
+        _cluster("b", "2023-01-11", "The order cannot stand. " + MIXED_LINE),
+        _cluster("c", "2023-01-09", NO_DISPOSITION),
+    ])
+    store.finalize_cases(conn)
+    stats = caselaw.ingest_dispositions(conn)
+    assert stats["labeled"] == 2
+    got = tools.get_case(conn, "b")
+    assert got["disposition"] == "mixed"
+    assert got["disposition_labels"] == ["reversed", "remanded"]
+    assert "not an official judgment" in " ".join(got["flags"])
+    assert got["text"][got["disposition_quote"] and got["text"].index(got["disposition_quote"]):].startswith(got["disposition_quote"])
+    hits = tools.search_cases(conn, "order", disposition="remanded")
+    assert [r["cluster_id"] for r in hits["results"]] == ["b"]
+    assert tools.search_cases(conn, "Child", disposition="affirmed")["results"][0]["cluster_id"] == "a"
+
+
+DE_NOVO = "The trial court's decision was based on a paper record. Therefore, our review is de novo. See In re Adoption of C.B.M., 992 N.E.2d 687, 691 (Ind. 2013)."
+ABUSE = "A probation revocation determination, including the sanction imposed, is reviewed for abuse of discretion."
+BOTH = DE_NOVO + " " + ABUSE
+HOLDING_ONLY = "The trial court did not abuse its discretion in admitting the exhibit."
+FACT_ONLY = "There was substantial evidence that M.R. accepted and welcomed the support."
+ARGUMENT = "Smith argues that our review is de novo and that the court erred."
+
+
+def test_classify_standards_keeps_stated_standards_only():
+    labels = [row["label"] for row in caselaw.classify_standards(BOTH)]
+    assert labels == ["de_novo", "abuse_of_discretion"]
+    de_novo = caselaw.classify_standards(DE_NOVO)[0]
+    assert de_novo["quote"] in DE_NOVO or DE_NOVO[de_novo["quote_start"]:de_novo["quote_end"]] == de_novo["quote"]
+    assert "de novo" in de_novo["quote"]
+    assert caselaw.classify_standards(HOLDING_ONLY) == []
+    assert caselaw.classify_standards(FACT_ONLY) == []
+    assert caselaw.classify_standards(ARGUMENT) == []
+    assert caselaw.classify_standards("") == []
+    sufficiency = "When assessing the sufficiency of the evidence, we neither reweigh the evidence nor judge witness credibility."
+    assert caselaw.classify_standards(sufficiency)[0]["label"] == "sufficiency"
+
+
+def test_ingest_standards_on_case_get_and_search(tmp_path):
+    db = str(tmp_path / "std.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("novo", "2024-01-01", "Paper record. " + DE_NOVO),
+        _cluster("both", "2024-02-01", BOTH + " The sanction was within the court's range."),
+        _cluster("none", "2024-03-01", HOLDING_ONLY + " " + FACT_ONLY),
+    ])
+    store.finalize_cases(conn)
+    stats = caselaw.ingest_standards(conn)
+    assert stats["opinions_with_standards"] == 2
+    assert stats["counts"]["de_novo"] == 2
+    assert stats["counts"]["abuse_of_discretion"] == 1
+    got = tools.get_case(conn, "both")
+    assert [row["label"] for row in got["standards"]] == ["de_novo", "abuse_of_discretion"]
+    assert got["text"][got["standards"][0]["quote_start"]:got["standards"][0]["quote_end"]] == got["standards"][0]["quote"]
+    assert "not a ruling on which standard governs" in " ".join(got["flags"])
+    hits = tools.search_cases(conn, "sanction", standard="abuse of discretion")
+    assert [row["cluster_id"] for row in hits["results"]] == ["both"]
+    assert hits["results"][0]["standard"] == "abuse_of_discretion"
+    de_novo_hits = {row["cluster_id"] for row in tools.search_cases(conn, "review", standard="de novo")["results"]}
+    assert de_novo_hits == {"novo", "both"}
+    assert tools.search_cases(conn, "exhibit", standard="de_novo")["results"] == []
+
+
+CONSTRUE = 'The Act "is to be liberally construed and administered." I.C. § 34-14-1-12. The next sentence is about procedure.'
+APPLIES = 'But the statute only applies if the decedent died from other causes. Ind. Code § 34-9-3-4(a).'
+VIOLATION = "Foster argues that her land was assessed in violation of Indiana Code § 6-1.1-4-4.2(b)."
+SEPARATE = "See I.C. § 8-15.5-2-8. When a statutory term is undefined, courts interpret the term using its plain meaning."
+PURSUANT = "Pursuant to I.C. § 34-13-3-10, the notice must describe the facts."
+NEGATED = "Though not applicable to this case, Indiana also has an Adult Wrongful Death Statute. Ind. Code § 34-23-1-2."
+CONSTRUCTIVE = "The order constituted constructive eviction, since she was not allowed to post a bond pursuant to IC 32-30-3-8."
+REPORTER = "See Smith v. State, 848 N.E.2d 341, 344 (Ind. 2006). We construe Ind. Code § 35-42-1-1 narrowly."
+
+
+def test_classify_statute_signals_stay_in_the_same_sentence():
+    constru = caselaw.classify_statute_signals(CONSTRUE)
+    assert [(row["section_id"], row["relation"]) for row in constru] == [("34-14-1-12", "construes")]
+    assert constru[0]["status"] == "rule_unreviewed"
+    assert CONSTRUE[constru[0]["quote_start"]:constru[0]["quote_end"]] == constru[0]["quote"]
+    assert "next sentence" not in constru[0]["quote"]
+    applies = caselaw.classify_statute_signals(APPLIES)
+    assert [(row["section_id"], row["relation"]) for row in applies] == [("34-9-3-4", "applies")]
+    violation = caselaw.classify_statute_signals(VIOLATION)
+    assert violation[0]["section_id"] == "6-1.1-4-4.2" and violation[0]["relation"] == "applies"
+    assert caselaw.classify_statute_signals(SEPARATE) == []
+    assert caselaw.classify_statute_signals(PURSUANT) == []
+    assert caselaw.classify_statute_signals(NEGATED) == []
+    assert caselaw.classify_statute_signals(CONSTRUCTIVE) == []
+    reporter = caselaw.classify_statute_signals(REPORTER)
+    assert [(row["section_id"], row["relation"]) for row in reporter] == [("35-42-1-1", "construes")]
+    assert "848 N.E.2d" not in reporter[0]["quote"]
+
+
+def test_cases_construing_returns_the_quote(tmp_path):
+    db = str(tmp_path / "sig.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("c1", "2024-05-01", CONSTRUE),
+        _cluster("c2", "2024-06-01", APPLIES),
+        _cluster("c3", "2024-07-01", SEPARATE),
+    ])
+    stats = caselaw.ingest_statute_signals(conn)
+    assert stats["opinions_with_signals"] == 2
+    got = tools.cases_construing(conn, "IC 34-14-1-12", relation="construes")
+    assert got["results"][0]["cluster_id"] == "c1"
+    assert got["results"][0]["status"] == "rule_unreviewed"
+    assert "not a holding" in " ".join(got["flags"])
+    assert tools.cases_construing(conn, "34-9-3-4", relation="construes")["results"] == []
+    case = tools.get_case(conn, "c2")
+    assert case["statute_signals"][0]["section_id"] == "34-9-3-4"
+    assert case["text"][case["statute_signals"][0]["quote_start"]:case["statute_signals"][0]["quote_end"]] == case["statute_signals"][0]["quote"]
+
+
 def test_case_cite_normalize_and_extract():
     from indiana_law import case_cites
 
@@ -311,3 +467,50 @@ def test_cases_citing_unresolved_and_court_year(tmp_path):
     assert {r["cluster_id"] for r in mention["results"]} == {"reever"}
     via_paren = tools.cases_citing_case(conn, "7th Cir. 2021")
     assert {r["cluster_id"] for r in via_paren["results"]} == {"reever"}
+
+
+DISSENT_LINE = "Riley, J., dissents with separate opinion."
+CONCUR_LINE = "Brown, Judge, concurs with separate opinion."
+BOTH_PARTS = "Judge Bradford concurs in part, dissents in part with separate opinion."
+TRANSFER = "David, J., dissents from the denial of transfer with separate opinion in which Rush, C.J., concurs."
+OTHER_CASE = "In a separate opinion, Justice Goff dissented from the foreseeability holding."
+WITHOUT = "Wife dissents without separate opinion from the fee order."
+NARRATIVE = "895 N.E.2d at 1225. He expressed his disagreement in a separate opinion concurring in the result."
+PRIOR_CONCUR = "We reverse and remand. Brown, J., concurs. Riley, J., dissents with a separate opinion. Ivy concedes the point."
+
+
+def test_classify_separate_writings_reads_the_slip_vote_line():
+    assert [row["label"] for row in caselaw.classify_separate_writings(DISSENT_LINE)] == ["dissents"]
+    assert [row["label"] for row in caselaw.classify_separate_writings(CONCUR_LINE)] == ["concurs"]
+    both = [row["label"] for row in caselaw.classify_separate_writings(BOTH_PARTS)]
+    assert both == ["concurs_in_part", "dissents_in_part"]
+    transfer = [row["label"] for row in caselaw.classify_separate_writings(TRANSFER)]
+    assert transfer == ["joins", "transfer_dissent"]
+    quote = caselaw.classify_separate_writings(DISSENT_LINE)[0]
+    assert DISSENT_LINE[quote["quote_start"]:quote["quote_end"]] == quote["quote"]
+    assert caselaw.classify_separate_writings(OTHER_CASE) == []
+    assert caselaw.classify_separate_writings(WITHOUT) == []
+    assert caselaw.classify_separate_writings(NARRATIVE) == []
+    prior = caselaw.classify_separate_writings(PRIOR_CONCUR)
+    assert [row["label"] for row in prior] == ["dissents"]
+    assert "Brown" not in prior[0]["quote"]
+    assert "Ivy" not in prior[0]["quote"]
+
+
+def test_separate_writings_round_trip(tmp_path):
+    db = str(tmp_path / "sep.db")
+    conn = store.connect(db)
+    store.add_case_clusters(conn, [
+        _cluster("d1", "2024-01-01", "The panel affirms. " + DISSENT_LINE),
+        _cluster("c1", "2024-02-01", CONCUR_LINE + " We affirm."),
+        _cluster("n1", "2024-03-01", OTHER_CASE),
+    ])
+    stats = caselaw.ingest_separate_writings(conn)
+    store.finalize_cases(conn)
+    assert stats["opinions_with_separate"] == 2
+    case = tools.get_case(conn, "d1")
+    assert case["separate_writings"][0]["label"] == "dissents"
+    assert case["text"][case["separate_writings"][0]["quote_start"]:case["separate_writings"][0]["quote_end"]] == case["separate_writings"][0]["quote"]
+    assert "not a holding" in " ".join(case["flags"])
+    found = tools.search_cases(conn, "affirms", separate="dissents")
+    assert {row["cluster_id"] for row in found["results"]} == {"d1"}

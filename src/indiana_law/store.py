@@ -90,6 +90,42 @@ CREATE TABLE IF NOT EXISTS case_outbound (
   PRIMARY KEY (citing_id, cite_key, court, year));
 CREATE INDEX IF NOT EXISTS ix_outbound_court_year ON case_outbound(court, year);
 CREATE INDEX IF NOT EXISTS ix_outbound_key ON case_outbound(cite_key);
+CREATE TABLE IF NOT EXISTS case_disposition(
+  cluster_id TEXT PRIMARY KEY,
+  disposition TEXT NOT NULL,
+  labels TEXT NOT NULL,
+  in_part INTEGER NOT NULL DEFAULT 0,
+  method TEXT NOT NULL,
+  quote TEXT,
+  quote_start INTEGER,
+  quote_end INTEGER);
+CREATE INDEX IF NOT EXISTS ix_case_disposition ON case_disposition(disposition);
+CREATE TABLE IF NOT EXISTS case_standard(
+  cluster_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  quote TEXT,
+  quote_start INTEGER,
+  quote_end INTEGER,
+  PRIMARY KEY(cluster_id, label));
+CREATE INDEX IF NOT EXISTS ix_case_standard_label ON case_standard(label);
+CREATE TABLE IF NOT EXISTS statute_signal(
+  cluster_id TEXT NOT NULL,
+  section_id TEXT NOT NULL,
+  relation TEXT NOT NULL,
+  quote TEXT,
+  quote_start INTEGER,
+  quote_end INTEGER,
+  status TEXT NOT NULL,
+  PRIMARY KEY(cluster_id, section_id, relation));
+CREATE INDEX IF NOT EXISTS ix_statute_signal_section ON statute_signal(section_id, relation);
+CREATE TABLE IF NOT EXISTS case_separate(
+  cluster_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  quote TEXT,
+  quote_start INTEGER,
+  quote_end INTEGER,
+  PRIMARY KEY(cluster_id, label));
+CREATE INDEX IF NOT EXISTS ix_case_separate_label ON case_separate(label);
 """
 FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS section_fts USING fts5(text, content='section_version', content_rowid='vid', tokenize='porter unicode61');
@@ -242,6 +278,52 @@ def replace_case_outbound(conn, rows) -> int:
     )
     conn.commit()
     return conn.execute("SELECT count(*) FROM case_outbound").fetchone()[0]
+
+
+def replace_dispositions(conn, rows) -> int:
+    conn.execute("DELETE FROM case_disposition")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_disposition("
+        "cluster_id, disposition, labels, in_part, method, quote, quote_start, quote_end) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_disposition").fetchone()[0]
+
+
+def replace_statute_signals(conn, rows) -> int:
+    conn.execute("DELETE FROM statute_signal")
+    conn.executemany(
+        "INSERT OR REPLACE INTO statute_signal("
+        "cluster_id, section_id, relation, quote, quote_start, quote_end, status) "
+        "VALUES (?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM statute_signal").fetchone()[0]
+
+
+def replace_separate_writings(conn, rows) -> int:
+    conn.execute("DELETE FROM case_separate")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_separate(cluster_id, label, quote, quote_start, quote_end) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_separate").fetchone()[0]
+
+
+def replace_standards(conn, rows) -> int:
+    conn.execute("DELETE FROM case_standard")
+    conn.executemany(
+        "INSERT OR REPLACE INTO case_standard(cluster_id, label, quote, quote_start, quote_end) "
+        "VALUES (?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    return conn.execute("SELECT count(*) FROM case_standard").fetchone()[0]
 
 
 def finalize_cases(conn) -> None:

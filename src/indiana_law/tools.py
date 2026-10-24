@@ -297,6 +297,41 @@ def _form_for(conn, cluster_id):
     return conn.execute("SELECT * FROM case_form WHERE cluster_id=?", (str(cluster_id),)).fetchone()
 
 
+def _has_dispositions(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_disposition'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_disposition LIMIT 1").fetchone() is not None
+
+
+def _disposition_for(conn, cluster_id):
+    if not _has_dispositions(conn):
+        return None
+    return conn.execute("SELECT * FROM case_disposition WHERE cluster_id=?", (str(cluster_id),)).fetchone()
+
+
+_DISPOSITION_FILTERS = {
+    "affirmed", "reversed", "remanded", "vacated", "dismissed", "mixed", "unlabeled",
+}
+_STANDARD_FILTERS = {
+    "de novo": "de_novo",
+    "de_novo": "de_novo",
+    "abuse of discretion": "abuse_of_discretion",
+    "abuse_of_discretion": "abuse_of_discretion",
+    "clearly erroneous": "clearly_erroneous",
+    "clear error": "clearly_erroneous",
+    "clearly_erroneous": "clearly_erroneous",
+    "sufficiency": "sufficiency",
+    "prima facie": "prima_facie_error",
+    "prima facie error": "prima_facie_error",
+    "prima_facie_error": "prima_facie_error",
+    "substantial evidence": "substantial_evidence",
+    "substantial_evidence": "substantial_evidence",
+    "arbitrary": "arbitrary_or_capricious",
+    "arbitrary and capricious": "arbitrary_or_capricious",
+    "arbitrary or capricious": "arbitrary_or_capricious",
+    "arbitrary_or_capricious": "arbitrary_or_capricious",
+}
+
+
 def _case_flags(row, form_row=None) -> list[str]:
     flags = ["unofficial CourtListener extract; not a citator; not legal advice"]
     if not row["has_opinion_text"]:
@@ -316,7 +351,55 @@ def _case_flags(row, form_row=None) -> list[str]:
     return flags
 
 
-def search_cases(conn, query, court=None, after=None, before=None, form=None, limit=10):
+_SEPARATE_LABELS = {
+    "concurs",
+    "dissents",
+    "concurs_in_part",
+    "dissents_in_part",
+    "concurs_in_result",
+    "transfer_dissent",
+    "joins",
+}
+
+
+def _has_separate(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_separate'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_separate LIMIT 1").fetchone() is not None
+
+
+def _has_standards(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='case_standard'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM case_standard LIMIT 1").fetchone() is not None
+
+
+def _standards_for(conn, cluster_id):
+    if not _has_standards(conn):
+        return None
+    return list(conn.execute(
+        "SELECT label, quote, quote_start, quote_end FROM case_standard WHERE cluster_id=? ORDER BY quote_start",
+        (str(cluster_id),),
+    ))
+
+
+def _normalize_standard(value) -> str | None:
+    if not value:
+        return None
+    key = re.sub(r"\s+", " ", str(value).strip().lower().rstrip("."))
+    return _STANDARD_FILTERS.get(key)
+
+
+def _disposition_flags(disp_row) -> list[str]:
+    if not disp_row or disp_row["method"] in {"none", "no_text"}:
+        return []
+    flags = [
+        "disposition is a rule read of the closing line, not an official judgment and not treatment of another case"
+    ]
+    if disp_row["in_part"]:
+        flags.append("closing line says in part")
+    return flags
+
+
+def search_cases(conn, query, court=None, after=None, before=None, form=None, limit=10, disposition=None, standard=None, separate=None):
     """Search Indiana opinion clusters (Supreme Court, Court of Appeals, Tax Court)."""
     limit = max(1, min(int(limit), 25))
     out = {"query": query, "results": [], "source": CASE_SOURCE, **_assurance(conn)}
@@ -331,15 +414,24 @@ def search_cases(conn, query, court=None, after=None, before=None, form=None, li
         out["flags"] = ["case_fts index missing; rebuild with indiana_law.cli ingest-caselaw"]
         return out
     join_form = _has_case_forms(conn)
+    join_disp = _has_dispositions(conn)
+    wanted = (disposition or "").strip().lower().rstrip(".")
+    if wanted and wanted not in _DISPOSITION_FILTERS:
+        out["flags"] = [f"unknown disposition filter {disposition!r}"]
+        return out
     sql = (
         "SELECT c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, c.precedential_status, "
         "c.has_opinion_text, snippet(case_fts, 0, '[', ']', '...', 24) AS snip"
     )
     if join_form:
         sql += ", f.decision_form, f.citability"
+    if join_disp:
+        sql += ", d.disposition, d.labels, d.quote"
     sql += " FROM case_fts JOIN case_cluster c ON c.rowid=case_fts.rowid"
     if join_form:
         sql += " LEFT JOIN case_form f ON f.cluster_id=c.cluster_id"
+    if join_disp:
+        sql += " LEFT JOIN case_disposition d ON d.cluster_id=c.cluster_id"
     sql += " WHERE case_fts MATCH ?"
     args: list = [_fts_query(query, "all")]
     if court:
@@ -354,6 +446,36 @@ def search_cases(conn, query, court=None, after=None, before=None, form=None, li
     if form and join_form:
         sql += " AND f.decision_form=?"
         args.append(form)
+    if wanted and join_disp:
+        if wanted in {"mixed", "unlabeled"}:
+            sql += " AND d.disposition=?"
+            args.append(wanted)
+        else:
+            sql += " AND (',' || d.labels || ',') LIKE ?"
+            args.append(f"%,{wanted},%")
+    elif wanted and not join_disp:
+        out["flags"] = ["disposition index not loaded"]
+        return out
+    standard_label = _normalize_standard(standard)
+    if standard and not standard_label:
+        out["flags"] = [f"unknown standard filter {standard!r}"]
+        return out
+    if standard_label and not _has_standards(conn):
+        out["flags"] = ["standard-of-review index not loaded"]
+        return out
+    if standard_label:
+        sql += " AND EXISTS (SELECT 1 FROM case_standard s WHERE s.cluster_id=c.cluster_id AND s.label=?)"
+        args.append(standard_label)
+    separate_label = (separate or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if separate and separate_label not in _SEPARATE_LABELS:
+        out["flags"] = [f"unknown separate filter {separate!r}"]
+        return out
+    if separate_label and not _has_separate(conn):
+        out["flags"] = ["separate-opinion index not loaded"]
+        return out
+    if separate_label:
+        sql += " AND EXISTS (SELECT 1 FROM case_separate w WHERE w.cluster_id=c.cluster_id AND w.label=?)"
+        args.append(separate_label)
     sql += " LIMIT ?"
     args.append(limit)
     try:
@@ -371,6 +493,12 @@ def search_cases(conn, query, court=None, after=None, before=None, form=None, li
         "precedential_status": r["precedential_status"],
         "has_opinion_text": bool(r["has_opinion_text"]), "snippet": r["snip"],
         **({"decision_form": r["decision_form"], "citability": r["citability"]} if join_form else {}),
+        **({
+            "disposition": r["disposition"],
+            "disposition_labels": [p for p in (r["labels"] or "").split(",") if p],
+            "disposition_quote": r["quote"],
+        } if join_disp else {}),
+        **({"standard": standard_label} if standard_label else {}),
     } for r in rows]
     if not out["results"]:
         out.setdefault("flags", []).append("no caselaw matches")
@@ -389,6 +517,8 @@ def get_case(conn, cluster_id):
         out["flags"] = ["cluster not found"]
         return out
     form_row = _form_for(conn, cluster_id)
+    disp_row = _disposition_for(conn, cluster_id)
+    standard_rows = _standards_for(conn, cluster_id)
     out.update(
         found=True,
         court=row["court"],
@@ -405,8 +535,24 @@ def get_case(conn, cluster_id):
         text_source=row["text_source"],
         text=row["opinion_text"],
         url=f"https://www.courtlistener.com/opinion/{row['cluster_id']}/{row['slug']}/" if row["slug"] else CASE_SOURCE,
-        flags=_case_flags(row, form_row),
+        flags=_case_flags(row, form_row) + _disposition_flags(disp_row),
     )
+    if standard_rows:
+        out["standards"] = [{
+            "label": r["label"],
+            "quote": r["quote"],
+            "quote_start": r["quote_start"],
+            "quote_end": r["quote_end"],
+        } for r in standard_rows]
+        out["flags"].append(
+            "standards are rule reads of sentences that state a standard of review, not a ruling on which standard governs"
+        )
+    if disp_row:
+        out["disposition"] = disp_row["disposition"]
+        out["disposition_labels"] = [p for p in (disp_row["labels"] or "").split(",") if p]
+        out["disposition_in_part"] = bool(disp_row["in_part"])
+        out["disposition_quote"] = disp_row["quote"]
+        out["disposition_method"] = disp_row["method"]
     if form_row:
         out["decision_form"] = form_row["decision_form"]
         out["citability"] = form_row["citability"]
@@ -430,6 +576,40 @@ def get_case(conn, cluster_id):
         out["cited_by_this"] = conn.execute(
             "SELECT count(*) FROM case_mention WHERE citing_id=?", (str(cluster_id),)
         ).fetchone()[0]
+    if _has_statute_signals(conn):
+        signal_rows = list(conn.execute(
+            "SELECT section_id, relation, quote, quote_start, quote_end, status "
+            "FROM statute_signal WHERE cluster_id=? ORDER BY quote_start LIMIT 12",
+            (str(cluster_id),),
+        ))
+        if signal_rows:
+            out["statute_signals"] = [{
+                "section_id": r["section_id"],
+                "relation": r["relation"],
+                "status": r["status"],
+                "quote": r["quote"],
+                "quote_start": r["quote_start"],
+                "quote_end": r["quote_end"],
+            } for r in signal_rows]
+            out["flags"].append(
+                "statute_signals are citation-sentence rule reads with status rule_unreviewed; not a holding and not a citator"
+            )
+    if _has_separate(conn):
+        separate_rows = list(conn.execute(
+            "SELECT label, quote, quote_start, quote_end FROM case_separate "
+            "WHERE cluster_id=? ORDER BY quote_start",
+            (str(cluster_id),),
+        ))
+        if separate_rows:
+            out["separate_writings"] = [{
+                "label": r["label"],
+                "quote": r["quote"],
+                "quote_start": r["quote_start"],
+                "quote_end": r["quote_end"],
+            } for r in separate_rows]
+            out["flags"].append(
+                "separate_writings are the slip's own 'with separate opinion' vote line; not a holding and not another case's writing"
+            )
     return out
 
 
@@ -508,6 +688,95 @@ def cases_citing(conn, section_id, court=None, after=None, before=None, limit=25
         flags.append(
             f"{unresolved} of these opinions predate the structured Code snapshots or cite an id not in the store"
         )
+    out["flags"] = flags
+    return out
+
+
+def _has_statute_signals(conn) -> bool:
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='statute_signal'").fetchone()
+    return bool(row) and conn.execute("SELECT 1 FROM statute_signal LIMIT 1").fetchone() is not None
+
+
+def cases_construing(conn, section_id, relation=None, court=None, after=None, before=None, limit=25):
+    """Opinions whose text states a construction or application signal in the same sentence as the section.
+
+    rule_unreviewed. Not a holding, not a citator, not good law.
+    """
+    ids = asof.normalize_citation(section_id) or [str(section_id or "").strip()]
+    sid = ids[0] if ids else ""
+    limit = max(1, min(int(limit), 50))
+    wanted = (relation or "").strip().lower()
+    out = {
+        "section_id": sid,
+        "citation": _citation(sid) if sid else "",
+        "relation": wanted or "any",
+        "results": [],
+        "source": CASE_SOURCE,
+        **_assurance(conn),
+    }
+    flags = [
+        "citation-sentence signal only; status is rule_unreviewed; not a holding; not a citator; not good law",
+        "unofficial CourtListener extract; not legal advice",
+    ]
+    if wanted and wanted not in {"construes", "applies"}:
+        out["flags"] = flags + [f"unknown relation {relation!r}; use construes or applies"]
+        return out
+    if not sid:
+        out["flags"] = flags + ["empty section id"]
+        return out
+    if not _has_cases(conn):
+        out["flags"] = flags + ["no caselaw loaded"]
+        return out
+    if not _has_statute_signals(conn):
+        out["flags"] = flags + ["no statute signals indexed; run indiana_law.cli ingest-statute-signals"]
+        return out
+    sql = (
+        "SELECT s.relation, s.quote, s.quote_start, s.quote_end, s.status, "
+        "c.cluster_id, c.court_id, c.court, c.case_name, c.date_filed, c.precedential_status "
+        "FROM statute_signal s JOIN case_cluster c ON c.cluster_id=s.cluster_id "
+        "WHERE s.section_id=?"
+    )
+    args: list = [sid]
+    if wanted:
+        sql += " AND s.relation=?"
+        args.append(wanted)
+    if court:
+        sql += " AND c.court_id=?"
+        args.append(court if court in COURTS else court)
+    if after:
+        sql += " AND c.date_filed>=?"
+        args.append(after)
+    if before:
+        sql += " AND c.date_filed<=?"
+        args.append(before)
+    sql += " ORDER BY c.date_filed DESC LIMIT ?"
+    args.append(limit)
+    rows = list(conn.execute(sql, args))
+    out["results"] = [{
+        "cluster_id": r["cluster_id"],
+        "court": r["court"],
+        "court_id": r["court_id"],
+        "case_name": r["case_name"],
+        "date_filed": r["date_filed"],
+        "precedential_status": r["precedential_status"],
+        "relation": r["relation"],
+        "status": r["status"],
+        "quote": r["quote"],
+        "quote_start": r["quote_start"],
+        "quote_end": r["quote_end"],
+    } for r in rows]
+    total_sql = "SELECT count(*) FROM statute_signal WHERE section_id=?"
+    total_args: list = [sid]
+    if wanted:
+        total_sql += " AND relation=?"
+        total_args.append(wanted)
+    total = conn.execute(total_sql, total_args).fetchone()[0]
+    out["match_count"] = len(out["results"])
+    out["indexed_signal_count"] = total
+    if total > len(out["results"]):
+        flags.append(f"{total} signals for this id; showing {len(out['results'])}")
+    if not out["results"]:
+        flags.append("no indexed construction or application signal for this section id")
     out["flags"] = flags
     return out
 
