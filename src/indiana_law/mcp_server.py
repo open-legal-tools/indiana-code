@@ -87,7 +87,9 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
         transport_security=_transport_security(public_host),
     )
     db = conn or _connect()
-    usage.count_tools(mcp, usage.from_env())
+    counter = usage.from_env()
+    usage.count_tools(mcp, counter)
+    usage.count_pages(mcp, counter)
     ro = dict(readOnlyHint=True, idempotentHint=True, openWorldHint=False, destructiveHint=False)
 
     @mcp.custom_route("/", methods=["GET"], name="landing")

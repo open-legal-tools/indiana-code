@@ -78,7 +78,7 @@ def landing_html(public_host: str = "mcp.openindianalaw.org") -> str:
   <a href="https://github.com/open-indiana-law/indiana-code">open-indiana-law/indiana-code</a>.
   Coverage limits: <a href="/terms">terms</a>.
   How we handle requests: <a href="/privacy">privacy</a>.</p>
-  <p>This service counts only how many times each tool is used each day. It does not record what you ask.</p>
+  <p>This service counts only how many times each tool is used and each page is opened, per day. It does not record what you ask.</p>
 </body>
 </html>
 """
@@ -159,12 +159,14 @@ def privacy_html() -> str:
   <p>We do <strong>not</strong> keep a published log of search text,
   citation strings, case names, or other tool arguments. Those strings
   can be as sensitive as the legal question you are working on.</p>
-  <p>We count how often each tool is used. For each UTC day and each tool
-  we keep only:</p>
+  <p>We count how often each tool is used and each page is opened. For each
+  UTC day and each tool or page we keep only:</p>
   <ul>
-    <li>how many times the tool was called, and</li>
-    <li>how many of those calls failed.</li>
+    <li>how many times it was called or opened, and</li>
+    <li>how many of those failed.</li>
   </ul>
+  <p>A page is counted by its kind (for example, “an opinion page”), never by
+  the case number or any other part of the address.</p>
   <p>We do not record who called, from where, with what client, or what was
   asked. The counts are for capacity planning and for showing that free
   legal tools are used. They are not sold, and they are not used to train a model.</p>
