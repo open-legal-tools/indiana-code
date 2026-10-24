@@ -108,3 +108,23 @@ def test_citation_uses_the_opinions_own_case_number_not_a_related_one(tmp_path):
     out = tools.resolve_opinion(conn, "1")  # a cluster id works
     assert out["found"] and out["citation"].startswith("Steele v. Taber, No. 22A-CT-925 ")
     assert out["docket_numbers"] == ["22A-CT-925", "18A-JT-492"]  # bare, normalized, own number first
+
+
+def test_a_case_number_mentioned_in_another_opinion_does_not_hijack_the_lookup(tmp_path):
+    conn = _db(tmp_path)
+    # Cluster 2 only mentions 22A-CT-925 in its text; its own number is different.
+    conn.execute("INSERT INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES ('docket|22A-CT-925','2','docket','22A-CT-925')")
+    conn.execute("INSERT INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) VALUES ('2','opinion','precedent','24A-CR-77',0)")
+    conn.commit()
+    out = tools.resolve_opinion(conn, "No. 22A-CT-925")
+    assert out["found"] and out["cluster_id"] == "1" and not out.get("candidates")
+
+
+def test_a_mentioned_only_number_is_flagged_not_presented_as_the_opinion(tmp_path):
+    conn = _db(tmp_path)
+    conn.execute("INSERT INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES ('docket|20A-CR-5','2','docket','20A-CR-5')")
+    conn.execute("INSERT INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) VALUES ('2','opinion','precedent','24A-CR-77',0)")
+    conn.commit()
+    out = tools.resolve_opinion(conn, "No. 20A-CR-5")
+    assert out["found"] and out["cluster_id"] == "2"
+    assert any("mentioned" in f for f in out["flags"]) and out["citation"].startswith("Later v. State, No. 24A-CR-77")

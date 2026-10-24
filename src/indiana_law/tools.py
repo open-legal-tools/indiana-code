@@ -906,6 +906,19 @@ def case_history(conn, cluster_id, own_docket=None):
     return out
 
 
+def _cluster_by_own_number(conn, text):
+    """The cluster whose slip opinion states this case number about itself (padded or unpadded), if exactly one does."""
+    key = case_cites.docket_key(text or "")
+    if not key:
+        return None
+    docket = key.removeprefix("docket|")
+    head, _, num = docket.rpartition("-")
+    variants = {docket, f"{head}-{int(num):04d}"}
+    marks = ",".join("?" for _ in variants)
+    rows = [r[0] for r in conn.execute(f"SELECT cluster_id FROM case_form WHERE case_number_in_text IN ({marks})", tuple(variants))]
+    return rows[0] if len(rows) == 1 else None
+
+
 def resolve_opinion(conn, query):
     """Resolve a Rule 22 citation or case number to one opinion, with a canonical citation, permalink, pinpoint check and history."""
     out = {"query": (query or "").strip(), "found": False, "source": CASE_SOURCE, **_assurance(conn), "flags": []}
@@ -915,7 +928,10 @@ def resolve_opinion(conn, query):
         key_query, pin = parsed.docket, parsed.pin
     except ValueError:
         parsed, key_query = None, out["query"]
-    resolved = resolve_case_query(conn, key_query)
+    own = _cluster_by_own_number(conn, key_query)
+    resolved = {"cluster_ids": [own], "ambiguous": False, "mentioned_only": False} if own else resolve_case_query(conn, key_query)
+    if resolved["cluster_ids"] and not own and case_cites.docket_key(key_query):
+        resolved["mentioned_only"] = True  # the number matched a case number found in the text, not the opinion's own
     if resolved["ambiguous"]:
         out["candidates"] = resolved["cluster_ids"]
         out["flags"].append("this key matches more than one cluster in this extract; not resolved")
@@ -924,6 +940,9 @@ def resolve_opinion(conn, query):
         out["flags"].append("no opinion in this extract matches that case number or citation")
         return out
     cid = resolved["cluster_ids"][0]
+    if resolved.get("mentioned_only"):
+        out["flags"].append("this case number is only mentioned in the text of this opinion; it is not the number the opinion states about itself, "
+                            "so it may be a related case. Check that this is the opinion you want")
     row = conn.execute("SELECT * FROM case_cluster WHERE cluster_id=?", (str(cid),)).fetchone()
     form = conn.execute("SELECT decision_form, case_number_in_text FROM case_form WHERE cluster_id=?", (str(cid),)).fetchone()
     dockets = _docket_numbers(conn, cid)
