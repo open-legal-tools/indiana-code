@@ -28,7 +28,9 @@ def _db(tmp_path):
         _cluster("3", "2024-09-01", "Other v. State",
                  "Compare Steele v. Taber, 100 N.E.3d 1 (Ind. Ct. App. 2023), aff'd, which is not our case."),
     ])
-    conn.execute("INSERT INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES ('docket|22A-CT-925','1','docket','22A-CT-925')")
+    # The extract's docket rows are every case number found in the text: one may be a related case, and some carry a prefix.
+    conn.execute("INSERT INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES ('docket|22A-CT-925','1','docket','Court of Appeals Case No. 22A-CT-925')")
+    conn.execute("INSERT INTO case_cite(cite_key, cluster_id, cite_kind, raw_cite) VALUES ('docket|18A-JT-492','1','docket','18A-JT-492')")
     conn.execute("INSERT INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) VALUES ('1','memorandum','persuasive','22A-CT-925',0)")
     conn.execute("INSERT INTO case_mention(citing_id, cited_id, mention_count, cite_kind, as_of) VALUES ('2','1',1,'docket','2026-06-23')")
     conn.commit()
@@ -98,3 +100,11 @@ def test_opinion_route_and_tool_are_wired(tmp_path):
     assert client.get("/opinions/99A-CR-1").status_code == 404
     tool = asyncio.run(mcp.call_tool("case_resolve", {"query": "No. 22A-CT-925, ¶ 2"}))
     assert "Steele v. Taber" in str(tool)
+
+
+def test_citation_uses_the_opinions_own_case_number_not_a_related_one(tmp_path):
+    conn = _db(tmp_path)
+    assert tools.resolve_opinion(conn, "Steele v. Taber")["found"] is False  # a name alone is not a key
+    out = tools.resolve_opinion(conn, "1")  # a cluster id works
+    assert out["found"] and out["citation"].startswith("Steele v. Taber, No. 22A-CT-925 ")
+    assert out["docket_numbers"] == ["22A-CT-925", "18A-JT-492"]  # bare, normalized, own number first

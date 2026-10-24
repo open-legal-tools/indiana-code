@@ -866,14 +866,17 @@ HISTORY_NOTE = (
 
 
 def _docket_numbers(conn, cluster_id):
-    rows = conn.execute("SELECT cite_key, raw_cite FROM case_cite WHERE cluster_id=? AND cite_kind='docket'", (str(cluster_id),))
-    return [(r["raw_cite"] or r["cite_key"]).removeprefix("docket|") for r in rows]
+    """Case numbers found in the opinion's text, bare and unpadded. These can include related cases, so the opinion's own number is
+    taken from case_form first (see resolve_opinion)."""
+    rows = conn.execute("SELECT cite_key FROM case_cite WHERE cluster_id=? AND cite_kind='docket' ORDER BY cite_key", (str(cluster_id),))
+    return [r["cite_key"].removeprefix("docket|") for r in rows]
 
 
-def case_history(conn, cluster_id):
+def case_history(conn, cluster_id, own_docket=None):
     """Subsequent history (trans. denied, vacated, ...) as later opinions in the extract wrote it after a citation of this case."""
     needles = [r["raw_cite"] for r in conn.execute(
-        "SELECT raw_cite FROM case_cite WHERE cluster_id=? AND raw_cite IS NOT NULL", (str(cluster_id),))]
+        "SELECT raw_cite FROM case_cite WHERE cluster_id=? AND cite_kind='reporter' AND raw_cite IS NOT NULL", (str(cluster_id),))]
+    needles += [own_docket] if own_docket else []
     out = {"events": [], "note": HISTORY_NOTE}
     if not needles or not _has_case_mentions(conn):
         return out
@@ -922,9 +925,11 @@ def resolve_opinion(conn, query):
         return out
     cid = resolved["cluster_ids"][0]
     row = conn.execute("SELECT * FROM case_cluster WHERE cluster_id=?", (str(cid),)).fetchone()
-    form = conn.execute("SELECT decision_form FROM case_form WHERE cluster_id=?", (str(cid),)).fetchone()
+    form = conn.execute("SELECT decision_form, case_number_in_text FROM case_form WHERE cluster_id=?", (str(cid),)).fetchone()
     dockets = _docket_numbers(conn, cid)
-    docket = case_cites.normalize_docket(dockets[0]) if dockets else (parsed.docket if parsed else None)
+    own = case_cites.normalize_docket(form["case_number_in_text"]) if form and form["case_number_in_text"] else (parsed.docket if parsed else None)
+    docket = own or (dockets[0] if dockets else None)
+    dockets = ([docket] if docket else []) + [d for d in dockets if d != docket]
     out.update(found=True, cluster_id=cid, case_name=row["case_name"], court=row["court"], date_filed=row["date_filed"],
                docket_numbers=dockets, url=f"https://www.courtlistener.com/opinion/{row['cluster_id']}/{row['slug']}/" if row["slug"] else CASE_SOURCE)
     if docket:
@@ -946,5 +951,5 @@ def resolve_opinion(conn, query):
         else:
             out["pinpoint"] = {"kind": "page", "number": pin.start, "exists": None,
                                "note": "page pinpoints need the official PDF; this server holds plain text without page breaks"}
-    out["history"] = case_history(conn, cid)
+    out["history"] = case_history(conn, cid, docket)
     return out
