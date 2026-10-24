@@ -74,6 +74,7 @@ def landing_html(public_host: str = "mcp.openindianalaw.org") -> str:
   <a href="https://github.com/open-indiana-law/indiana-code">open-indiana-law/indiana-code</a>.
   Coverage limits: <a href="/terms">terms</a>.
   How we handle requests: <a href="/privacy">privacy</a>.</p>
+  <p>This service counts only how many times each tool is used each day. It does not record what you ask.</p>
 </body>
 </html>
 """
@@ -154,17 +155,15 @@ def privacy_html() -> str:
   <p>We do <strong>not</strong> keep a published log of search text,
   citation strings, case names, or other tool arguments. Those strings
   can be as sensitive as the legal question you are working on.</p>
-  <p>When usage counters are turned on, we intend to record only:</p>
+  <p>We count how often each tool is used. For each UTC day and each tool
+  we keep only:</p>
   <ul>
-    <li>which tool was called,</li>
-    <li>whether it succeeded or failed,</li>
-    <li>how long it took,</li>
-    <li>the UTC day, and</li>
-    <li>a coarse client class (for example “MCP” versus a browser GET),
-        never a name or email.</li>
+    <li>how many times the tool was called, and</li>
+    <li>how many of those calls failed.</li>
   </ul>
-  <p>Those counters, if kept, are for capacity and abuse detection.
-  They are not sold, and they are not used to train a model.</p>
+  <p>We do not record who called, from where, with what client, or what was
+  asked. The counts are for capacity planning and for showing that free
+  legal tools are used. They are not sold, and they are not used to train a model.</p>
 
   <h2>What hosts see anyway</h2>
   <p>Traffic reaches the origin through a Cloudflare Tunnel. Cloudflare
