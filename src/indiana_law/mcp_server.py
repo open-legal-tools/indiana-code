@@ -11,7 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from . import tools, web
 
@@ -96,6 +96,14 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
     @mcp.custom_route("/terms", methods=["GET"], name="terms")
     async def terms(_request: Request) -> HTMLResponse:
         return HTMLResponse(web.terms_html())
+
+    @mcp.custom_route("/privacy", methods=["GET"], name="privacy")
+    async def privacy(_request: Request) -> HTMLResponse:
+        return HTMLResponse(web.privacy_html())
+
+    @mcp.custom_route("/icon.svg", methods=["GET"], name="icon")
+    async def icon(_request: Request) -> Response:
+        return Response(web.icon_svg(), media_type="image/svg+xml")
 
     @mcp.custom_route("/health", methods=["GET"], name="health")
     async def health(_request: Request) -> JSONResponse:

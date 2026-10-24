@@ -18,17 +18,22 @@ PYTHONPATH=src python -m indiana_law.mcp_server --http
 
 - Landing: `http://127.0.0.1:8765/`
 - Terms: `http://127.0.0.1:8765/terms`
+- Privacy: `http://127.0.0.1:8765/privacy`
+- Icon: `http://127.0.0.1:8765/icon.svg`
 - MCP: `http://127.0.0.1:8765/mcp`
 
 ```json
 {
   "mcpServers": {
     "indiana-code": {
-      "url": "https://mcp.indianacle.com/mcp"
+      "url": "https://mcp.openindianalaw.org/mcp"
     }
   }
 }
 ```
+
+Keep the live origin on worker-01 only. Do not stand up a second public
+copy on worker-02, worker-03, or worker-04. See [LISTING.md](LISTING.md).
 
 ## worker-01 layout
 

@@ -106,8 +106,9 @@ INDIANA_LAW_TRANSPORT=streamable-http INDIANA_LAW_PORT=8765 \
 ```
 
 Hosted streamable HTTP (unofficial; not legal advice):
-`https://mcp.indianacle.com/mcp`. Landing and terms are on `/` and `/terms`.
-See [docs/DEPLOY.md](docs/DEPLOY.md).
+`https://mcp.openindianalaw.org/mcp`. Landing, terms, and privacy are on
+`/`, `/terms`, and `/privacy`. Directory listing packet (not submitted):
+[docs/LISTING.md](docs/LISTING.md). See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Source
 
