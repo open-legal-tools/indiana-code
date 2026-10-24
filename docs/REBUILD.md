@@ -50,5 +50,35 @@ PYTHONPATH=src python -m indiana_law.cli parse-acts \
   --year YYYY
 ```
 
-Then run `build-store` as above. Expected counts after a full rebuild:
+Then run `build-store` as above. Expected counts after a Code rebuild:
 10 snapshots, about 114,071 section versions, about 777,842 appearances.
+
+## Historical IGA companions (session laws, non-code, tables)
+
+```bash
+python scripts/fetch_iga_historical.py
+python scripts/ingest_iga_historical.py data/store/indiana-code.db
+```
+
+## Harvard CAP opinion bodies
+
+```bash
+python scripts/fetch_harvard_cap.py
+python scripts/extract_harvard_cap.py
+PYTHONPATH=src python -m indiana_law.cli ingest-caselaw data/store/indiana-code.db \
+  --clusters data/courtlistener/indiana/clusters.jsonl \
+  --opinions data/courtlistener/indiana/opinions.jsonl \
+  --harvard data/harvard-cap/indiana.jsonl
+PYTHONPATH=src python -m indiana_law.cli ingest-case-citations data/store/indiana-code.db \
+  --clusters data/courtlistener/2026-09-30/indiana/clusters.jsonl \
+  --harvard data/harvard-cap/indiana.jsonl
+```
+
+## Official Indiana court PDFs (including unpublished / NFP)
+
+```bash
+python scripts/fetch_official_decisions.py
+python scripts/ingest_official_decisions.py data/store/indiana-code.db
+```
+
+Do not Git-track the derived store, CAP zips, or official PDFs.

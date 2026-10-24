@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Open Indiana Law">
+  <rect width="512" height="512" fill="#f4efe6"/>
+  <rect x="118" y="96" width="118" height="320" rx="10" fill="#6b2d12"/>
+  <rect x="276" y="96" width="118" height="320" rx="10" fill="#6b2d12"/>
+  <rect x="138" y="116" width="78" height="280" rx="4" fill="#f4efe6"/>
+  <rect x="296" y="116" width="78" height="280" rx="4" fill="#f4efe6"/>
+  <rect x="150" y="148" width="54" height="10" fill="#6b2d12"/>
+  <rect x="150" y="178" width="54" height="10" fill="#6b2d12"/>
+  <rect x="150" y="208" width="40" height="10" fill="#6b2d12"/>
+  <rect x="308" y="148" width="54" height="10" fill="#6b2d12"/>
+  <rect x="308" y="178" width="54" height="10" fill="#6b2d12"/>
+  <rect x="308" y="208" width="40" height="10" fill="#6b2d12"/>
+</svg>

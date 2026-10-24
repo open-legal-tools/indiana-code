@@ -11,31 +11,64 @@ that disclaimer.
 - As-of resolution uses a July-1 cutoff plus those clauses. Pre-July-1 answers
   are only as good as the clause parse.
 
-## Companion PDFs (optional, same downloads page)
+## Companion PDFs (official IGA and court publications)
 
-`indiana_law.cli ingest-companion` can index Constitution, Non-code, and full
-Acts PDFs from the official HTML zips, plus pre-2017 archive title PDFs you
-download yourself (see `docs/ARCHIVE-PDFS.md`). Those use
-`ic_list_companion` / `ic_search_companion` / `ic_get_companion`. They are
-not dated Code sections.
+`indiana_law.cli ingest-companion` indexes Constitution, Non-code, Acts,
+historical tables, pre-2017 archive title PDFs, and current court-rules PDFs.
+Those use `ic_list_companion` / `ic_search_companion` / `ic_get_companion`.
+They are not dated Code sections.
 
-- 2018 still has no usable *act-clause* file
-- Pre-2017 archive zips are not bundled; ingest them locally after download
+- Session laws: IGA archive 1852–2000 plus yearly Acts 2000–2026
+  (`scripts/fetch_iga_historical.py`)
+- Non-code statutes: 1807–2026 (years IGA published a PDF)
+- Compiled Code title/chapter PDFs: 2005 and 2009–2016
+  (`scripts/fetch_iga_archives.py`); **2006–2008 and pre-2005 compiled zips
+  were still missing at the official path on 2026-10-23**
+- Court rules: current compiled PDFs from rules.incourts.gov, including Access
+  to Court Records. Not a historical rules archive.
 - Companion text is `pdftotext` output, not the HTML parser
+- 2018 still has no usable *act-clause* file
+
+## Not a complete opinion library
+
+`case_search` / `case_get` index Indiana clusters from the CourtListener
+2026-09-30 bulk, with opinion bodies joined from Harvard Caselaw Access
+Project JSON (static.case.law) and official PDFs from public.courts.in.gov.
+That is not every Indiana decision ever issued. Unpublished / NFP memos on
+the official portal begin around 2006.
+
+`ic_cases_citing` is a text-mention index of IC / Ind. Code citations in those
+opinion bodies. It is not a citator: it does not say a case construed, applied,
+followed, or distinguished a statute, and it is not a “good law” signal.
+Mentions without an IC / Ind. Code prefix are not indexed. Structured Code
+resolution is only flagged when the opinion date is in a loaded snapshot year
+and the section id exists in the store.
+
+`cases_citing_case` / `cases_cited_in` / `cases_citing_court` is a text-mention
+index of reporter citations and Rule 22 case numbers. Indiana identifiers come
+from Harvard CAP metadata joined by cap id. The extractor also reads U.S. /
+S. Ct. / F.2d / F.3d / F.4th / F. Supp. / regional reporters and
+`(court year)` parentheticals using CC0 Indigo Book 2d ed. (2023-2) tables
+T1.1 / T3 / T9 / T12. Those outbound cites stay unresolved: this store does
+not contain SCOTUS, Seventh Circuit, or district-court opinion bodies.
+Ambiguous table-page cites and *Id.* / *supra* are not resolved. This is not
+KeyCite, not treatment, and not a good-law signal.
+
+`decision_form` / `citability` on case tools is a text classification of the
+slip opinion (memorandum vs opinion, App. R. 65(D) as a date rule). It is not
+the court’s official publication status. CourtListener `precedential_status`
+sometimes labels memoranda Published (especially 2017–2018).
 
 ## Not ingested at all
 
 - Indiana Administrative Code
-- Indiana court rules
-- Appellate opinions (CourtListener bulk may exist locally; it is not in this
-  store and is not served by these tools)
 - SALI / FOLIO tags below title level (a title map CSV exists; no tool uses it)
-- Daily or mid-session updates. Coverage is the annual compile, `data_through`
-  2026-06-23.
+- Daily or mid-session updates. Structured Code coverage is the annual compile,
+  `data_through` 2026-06-23.
 
 ## Not this tool
 
 - Legal advice, citator status, “good law,” or KeyCite-style signals
 - An official publication. Verify every citation at iga.in.gov
-- A hosted public URL until one is separately stood up
+- A guarantee that the hosted URL is complete or current. `mcp.indianacle.com` is unofficial.
 - IGA API access. This project does not use `api.iga.in.gov`

@@ -22,6 +22,7 @@ QUESTIONS = [
     ("browse titles", "ic_browse", {}),
     ("browse chapters", "ic_browse", {"node_id": "31-16"}),
     ("act", "ic_get_act", {"act_id": "P.L.98-2026"}),
+    ("cases citing", "ic_cases_citing", {"section_id": "35-42-1-1", "limit": 5}),
 ]
 
 

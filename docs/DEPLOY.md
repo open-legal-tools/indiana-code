@@ -1,8 +1,10 @@
 # Hosted MCP (streamable HTTP)
 
-The same package can speak Streamable HTTP. Standing up a public URL, changing
-DNS, or opening a port on the farm still needs Danielle's approval. This file
-is the runbook, not authorization.
+Authorized 2026-10-22: stand up `https://mcp.openindianalaw.org` on farm
+`worker-01`, loopback only, dedicated Cloudflare tunnel. Do not open a new
+public farm port. Do not reuse another tunnel's token.
+
+Unofficial; not legal advice.
 
 ## Local check (no DNS)
 
@@ -11,34 +13,39 @@ export INDIANA_LAW_DB=/absolute/path/to/indiana-code.db
 export INDIANA_LAW_TRANSPORT=streamable-http
 export INDIANA_LAW_HOST=127.0.0.1
 export INDIANA_LAW_PORT=8765
-PYTHONPATH=src python -m indiana_law.mcp_server
+PYTHONPATH=src python -m indiana_law.mcp_server --http
 ```
 
-The MCP endpoint is `http://127.0.0.1:8765/mcp`.
-
-Cursor / Claude (remote URL, once a host exists):
+- Landing: `http://127.0.0.1:8765/`
+- Terms: `http://127.0.0.1:8765/terms`
+- Privacy: `http://127.0.0.1:8765/privacy`
+- Icon: `http://127.0.0.1:8765/icon.svg`
+- MCP: `http://127.0.0.1:8765/mcp`
 
 ```json
 {
   "mcpServers": {
     "indiana-code": {
-      "url": "https://mcp.indianacle.com/mcp"
+      "url": "https://mcp.openindianalaw.org/mcp"
     }
   }
 }
 ```
 
-## Public host (live as an unofficial prototype)
+Keep the live origin on worker-01 only. Do not stand up a second public
+copy on worker-02, worker-03, or worker-04. See [LISTING.md](LISTING.md).
 
-- Process: this package, streamable HTTP, read-only SQLite
-- Machine: a small always-on box behind a Cloudflare tunnel; its port is not
-  exposed directly to the internet. A Cloudflare Worker is a poor fit for a
-  512 MB database.
-- Name: `mcp.indianacle.com` (Cloudflare DNS on the already-owned zone)
-- Landing page at `/`, terms at `/terms`, MCP endpoint at `/mcp`
+## worker-01 layout
 
-A real MCP `initialize` handshake against `https://mcp.indianacle.com/mcp` was
-verified on 2026-10-23 (server `indiana-code`, version 1.30.0). The same
-endpoint also works from a local run: see the Streamable HTTP section of the
-README. This is an unofficial prototype; coverage limits are in
-[../NOT_COVERED.md](../NOT_COVERED.md) and on the terms page.
+- Code + venv + store: `/home/transcribe/indiana-code`
+- Tunnel config (no other farm tunnels): `~/.config/indiana-code/cloudflared.yml`
+- Units: `deploy/indiana-code-mcp.service`, `deploy/cloudflared-indiana-code.service`
+- Process binds `127.0.0.1:8765`. cloudflared rewrites `Host` to `127.0.0.1`.
+
+## Checks
+
+```bash
+curl -sS http://127.0.0.1:8765/health
+curl -sS -o /dev/null -w '%{http_code}\n' https://mcp.openindianalaw.org/
+INDIANA_LAW_DB=/path/to/indiana-code.db python scripts/smoke_http.py https://mcp.openindianalaw.org/mcp
+```

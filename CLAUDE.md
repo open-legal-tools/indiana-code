@@ -77,7 +77,7 @@ Law should be accessible. Serving text with search treats users — attorneys an
 
 ## Current Status
 
-**Schema v1 packaged locally** (branch `package-code-mcp`, from `add-schema-v1`). Done: parser, act-clause parser, versions store, as-of resolver, six-tool MCP (stdio and streamable HTTP), title-to-SALI mapping, tests, MIT license, honest README, rebuild recipe, `NOT_COVERED.md`. Not done: public Open Legal Tools repo, hosted URL, opinions in the store, section-level tags, evaluation run. Root `README.md` is current; `src/mcp_server.py` is historical.
+**Hosted unofficial MCP** at `https://mcp.indianacle.com` (branch `package-code-mcp`). Done: parser, act-clause parser, versions store, as-of resolver, MCP tools (stdio and streamable HTTP), IGA companions as far as published, current court-rules PDFs, Harvard CAP plus official court opinion bodies, tests, MIT license, honest README, rebuild scripts, `NOT_COVERED.md`, public `open-legal-tools/indiana-code` package. Not done: section-level SALI/FOLIO tags, evaluation run, Administrative Code. Root `README.md` is current; `src/mcp_server.py` is historical. Unofficial; not legal advice.
 
 Read first: `docs/DESIGN-schema-v1.md` (data model), `docs/SPEC-ROADMAP-v2.md` (scope, phases, who does what), `docs/EVAL-plan-v1.md`.
 Rules that matter: official text stays verbatim; everything we add is stored apart with provenance; no look-alike of an official citator; raw data under `data/` is read-only for agents; work orders return draft PRs only. `ROADMAP.md` and `SPEC.md` predate this and are historical.
