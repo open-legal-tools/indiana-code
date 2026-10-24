@@ -1,5 +1,8 @@
 # Indiana Code MCP
 
+**Public home:** [Open Indiana Law](https://github.com/open-indiana-law) ([open-indiana-law/indiana-code](https://github.com/open-indiana-law/indiana-code)).
+Unofficial MCP: [mcp.openindianalaw.org](https://mcp.openindianalaw.org) (`/mcp`). This copy is unofficial and is not legal advice.
+
 Dated, unofficial copies of Indiana legal text as a local MCP server.
 Structured Indiana Code for 2017–2026; official IGA companions as far back
 as IGA publishes them; current court-rules PDFs; Indiana appellate clusters
