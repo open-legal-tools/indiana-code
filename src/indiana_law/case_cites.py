@@ -1,16 +1,15 @@
 """Case-to-case citation index. Text matches only; not a citator; not legal advice.
 
 Reporter identifiers come from Harvard CAP metadata (joined by cap id on the
-CourtListener filepath). Outbound cites are extracted from opinion bodies with
-eyecite when installed, plus a small Indiana-reporter / Rule 22 fallback.
-Ambiguous reporter keys (several opinions on one table page) are stored but
-not resolved into edges.
+CourtListener filepath). Outbound cites are extracted with an Indiana-reporter
+regex and Rule 22 case numbers. Ambiguous reporter keys (several opinions on
+one table page) are stored but not resolved into edges.
 """
 from __future__ import annotations
 
 import json
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from . import store
 
@@ -25,7 +24,7 @@ _REPORTER_DISPLAY = {
     "wilson": "Wilson",
 }
 
-# Harvard slugs and the reporter strings eyecite / opinions actually use.
+# Harvard slugs and the reporter strings opinions actually use.
 _REPORTER_ALIASES = {
     "ne2d": "ne2d",
     "ne2": "ne2d",
@@ -61,23 +60,6 @@ _REPORTER_CITE = re.compile(
 )
 
 _DOCKET = re.compile(r"\b(\d{2})([AST])-([A-Z]{2})-0*(\d+)\b", re.I)
-
-_EYECITE_TYPES = None
-
-
-def _eyecite_types():
-    """Load eyecite once. Missing extra is fine; regex still runs."""
-    global _EYECITE_TYPES
-    if _EYECITE_TYPES is not None:
-        return _EYECITE_TYPES
-    try:
-        from eyecite import get_citations
-        from eyecite.models import FullCaseCitation, ShortCaseCitation
-    except ImportError:
-        _EYECITE_TYPES = False
-        return False
-    _EYECITE_TYPES = (get_citations, FullCaseCitation, ShortCaseCitation)
-    return _EYECITE_TYPES
 
 
 def normalize_reporter(reporter: str) -> str:
@@ -129,41 +111,13 @@ def harvard_cap_id_from_filepath(path: str) -> str | None:
     return cap_id if cap_id.isdigit() else None
 
 
-def extract_reporter_keys(text: str, use_eyecite: bool = False) -> list[str]:
-    """Reporter cite_keys in document order. Regex is the ingest path; eyecite is opt-in."""
+def extract_reporter_keys(text: str) -> list[str]:
+    """Indiana reporter cite_keys in document order (first page only, not pinpoints)."""
     keys = []
     for m in _REPORTER_CITE.finditer(text or ""):
         key = reporter_key(m.group("reporter"), m.group("volume"), m.group("page"))
         if key:
             keys.append(key)
-    if not use_eyecite:
-        return keys
-    have = set(keys)
-    loaded = _eyecite_types()
-    if not loaded:
-        return keys
-    get_citations, FullCaseCitation, ShortCaseCitation = loaded
-    try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            found = get_citations(text or "")
-    except Exception:
-        return keys
-    for cite in found:
-        if not isinstance(cite, (FullCaseCitation, ShortCaseCitation)):
-            continue
-        groups = cite.groups or {}
-        reporter = ""
-        try:
-            reporter = cite.corrected_reporter() or ""
-        except Exception:
-            reporter = ""
-        reporter = reporter or groups.get("reporter") or ""
-        key = reporter_key(reporter, groups.get("volume"), groups.get("page"))
-        if key and key not in have:
-            keys.append(key)
-            have.add(key)
     return keys
 
 
@@ -247,9 +201,7 @@ def _unique_resolutions(cite_rows: list[tuple]) -> dict[str, str]:
     return {key: next(iter(ids)) for key, ids in owners.items() if len(ids) == 1}
 
 
-def ingest_case_citations(
-    conn, clusters_path: str, harvard_path: str = "", batch_size: int = 80, use_eyecite: bool = False
-) -> dict:
+def ingest_case_citations(conn, clusters_path: str, harvard_path: str = "", batch_size: int = 80) -> dict:
     """Index reporter/docket identifiers, then citing→cited edges. Not treatment."""
     cite_rows = build_case_cite_rows(conn, clusters_path, harvard_path)
     n_cites = store.replace_case_cites(conn, cite_rows)
@@ -273,7 +225,7 @@ def ingest_case_citations(
             break
         for cluster_id, date_filed, text in batch:
             opinions += 1
-            reporter_keys = extract_reporter_keys(text, use_eyecite=use_eyecite)
+            reporter_keys = extract_reporter_keys(text)
             docket_keys = extract_docket_keys(text)
             if not reporter_keys and not docket_keys:
                 continue
@@ -336,5 +288,4 @@ def ingest_case_citations(
         "unknown_cites": unknown,
         "self_cites": self_cites,
         "mention_pairs": n_edges,
-        "used_eyecite": bool(use_eyecite and _eyecite_types()),
     }

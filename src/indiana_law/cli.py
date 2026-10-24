@@ -49,11 +49,6 @@ def main(argv=None) -> int:
     h.add_argument("db")
     h.add_argument("--clusters", required=True, help="CourtListener Indiana clusters JSONL")
     h.add_argument("--harvard", default="", help="Extracted Indiana Harvard CAP JSONL")
-    h.add_argument(
-        "--eyecite",
-        action="store_true",
-        help="Also run Free Law Project eyecite (slower; regex already covers Ind. reporters)",
-    )
     args = p.parse_args(argv)
     if args.cmd == "parse-snapshot":
         n = parse_code.write_jsonl(parse_code.parse_snapshot_dir(args.src_dir, args.snapshot_id, args.zip_sha256), args.out_jsonl)
@@ -114,9 +109,7 @@ def main(argv=None) -> int:
         )
     elif args.cmd == "ingest-case-citations":
         conn = store.connect(args.db)
-        stats = case_cites.ingest_case_citations(
-            conn, args.clusters, args.harvard, use_eyecite=args.eyecite
-        )
+        stats = case_cites.ingest_case_citations(conn, args.clusters, args.harvard)
         print(
             f"case citations: {stats['cite_rows']} identifiers "
             f"({stats['unique_cite_keys']} unique keys); "
@@ -124,8 +117,7 @@ def main(argv=None) -> int:
             f"{stats['mention_pairs']} citing/cited pairs; "
             f"resolved {stats['resolved_cites']}; "
             f"ambiguous {stats['ambiguous_cites']}; "
-            f"unknown {stats['unknown_cites']}; "
-            f"eyecite={stats['used_eyecite']}"
+            f"unknown {stats['unknown_cites']}"
         )
     else:
         conn = store.connect(args.db)

@@ -28,7 +28,7 @@ only for Indiana Supreme Court decisions and omit "(Ind. Ct. App.)". She dislike
 - Pinpoint: slip-opinion page or paragraph; whether Indiana opinions carry usable pagination or numbered paragraphs is unchecked.
 - Indiana's own rule already cites memoranda by number (Appellate Rule 22 example, agent-reported: `Steele v. Taber, No. 22A-CT-925 (Ind. Ct. App. Jan. 17, 2023) (mem.)`), so this is close to existing practice.
 - Court filings must follow Rule 22 (agent-reported), so the tool should emit both: our short universal form and a Rule-22-compliant string on request. Do not present the short form as a replacement for filing practice.
-- We would need our own detector for case-number citations inside later opinions, alongside eyecite.
+- We would need our own detector for case-number citations inside later opinions. Started 2026-10-23 without Free Law Project libraries: `case_cites.py` extracts reporter first-pages and Rule 22 numbers.
 **First small test.** Take 200 recent decisions, generate the short form and the machine id, and check that each is unique and resolves back to one record.
 
 ## 2026-10-10 (Danielle): detect memorandum decisions and decision form from the text
