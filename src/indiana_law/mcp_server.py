@@ -10,7 +10,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from . import tools
+from . import tools, usage
 
 INSTRUCTIONS = (
     "Dated, unofficial copies of the Indiana Code from the General Assembly's annual downloads (2017 to 2026), with effective-dated "
@@ -42,6 +42,7 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
         json_response=True,
     )
     db = conn or _connect()
+    usage.count_tools(mcp, usage.from_env())
     ro = dict(readOnlyHint=True, idempotentHint=True, openWorldHint=False, destructiveHint=False)
 
     @mcp.tool(title="Search Indiana Code", annotations=ToolAnnotations(title="Search Indiana Code", **ro))

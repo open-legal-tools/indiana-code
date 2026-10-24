@@ -112,6 +112,13 @@ the root and the terms at `/terms`). It is an early prototype with known gaps; s
 Opening `/mcp` in a browser shows a JSON 406 error: that is the machine protocol,
 not a broken site. For how it is hosted, see [docs/DEPLOY.md](docs/DEPLOY.md).
 
+## Usage counts (optional, off by default)
+
+A host can count how often each tool is used. Set `INDIANA_LAW_USAGE_DB` to a file path and the server records, per UTC
+day and per tool, only the number of calls and errors. It never sees or stores IP addresses, queries, arguments, results
+or session ids, so the totals cannot identify anyone, and a failure to write a count never breaks a tool. Read the totals
+with `python -m indiana_law.usage /path/to/usage.sqlite`.
+
 ## Source
 
 Annual HTML zips from the Indiana General Assembly. This project does not use
