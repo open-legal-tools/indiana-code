@@ -1,5 +1,9 @@
 """Public HTML for the hosted streamable-HTTP MCP. Unofficial; not legal advice."""
 
+import html as _html
+
+from . import cite as _cite
+
 LANDING_TITLE = "Indiana Code MCP"
 TERMS_TITLE = "Indiana Code MCP — terms"
 PRIVACY_TITLE = "Indiana Code MCP — privacy"
@@ -218,4 +222,39 @@ def icon_svg() -> str:
   <rect x="308" y="178" width="54" height="10" fill="#6b2d12"/>
   <rect x="308" y="208" width="40" height="10" fill="#6b2d12"/>
 </svg>
+"""
+
+
+def opinion_html(result: dict, text: str) -> str:
+    """One opinion as plain text with an empty anchor before each numbered paragraph, so /opinions/25A-CR-1234#p23 jumps there."""
+    esc = _html.escape
+    marks = _cite.paragraph_markers(text or "")
+    body, last = [], 0
+    for number, offset in marks:
+        body.append(esc(text[last:offset]))
+        body.append(f'<span id="p{number}"></span>')
+        last = offset
+    body.append(esc((text or "")[last:]))
+    history = result.get("history", {})
+    events = "".join(
+        f"<li>{esc(e['event'])}: seen in {esc(e['seen_in']['case_name'] or '')} ({esc(e['seen_in']['date_filed'] or '')})</li>"
+        for e in history.get("events", [])
+    ) or "<li>No subsequent history found in the opinions in this extract.</li>"
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(result.get('citation') or result.get('case_name') or 'Indiana opinion')}</title>
+<style>{_CSS}
+.opinion {{ white-space: pre-wrap; font-size: 0.98rem; }}
+:target + * {{ background: #efe7d8; }}
+</style></head><body>
+<p class="flag">Unofficial copy · not legal advice</p>
+<h1>{esc(result.get('case_name') or '')}</h1>
+<p>{esc(result.get('citation') or '')}<br>{esc(result.get('court') or '')}, {esc(result.get('date_filed') or '')}.
+Source: <a href="{esc(result.get('url') or '')}">CourtListener</a>. Verify against the court's official opinion.</p>
+<h2>Subsequent history, as later opinions cite it</h2>
+<ul>{events}</ul>
+<p class="note">{esc(history.get('note', ''))}</p>
+<h2>Text</h2>
+<div class="opinion">{''.join(body)}</div>
+</body></html>
 """

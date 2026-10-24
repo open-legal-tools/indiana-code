@@ -104,6 +104,20 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
     async def privacy(_request: Request) -> HTMLResponse:
         return HTMLResponse(web.privacy_html())
 
+    @mcp.custom_route("/opinions/{docket}", methods=["GET"], name="opinion")
+    async def opinion(request: Request) -> Response:
+        result = tools.resolve_opinion(db, request.path_params["docket"])
+        wants_json = request.query_params.get("format") == "json" or "application/json" in request.headers.get("accept", "")
+        if not result["found"]:
+            if wants_json:
+                return JSONResponse(result, status_code=404)
+            return HTMLResponse("<!doctype html><title>Not found</title><p>No opinion in this extract matches that case number. "
+                                "This is an unofficial index; check the court's site.</p>", status_code=404)
+        if wants_json:
+            return JSONResponse(result)
+        row = db.execute("SELECT opinion_text FROM case_cluster WHERE cluster_id=?", (str(result["cluster_id"]),)).fetchone()
+        return HTMLResponse(web.opinion_html(result, (row["opinion_text"] if row else "") or ""))
+
     @mcp.custom_route("/icon.svg", methods=["GET"], name="icon")
     async def icon(_request: Request) -> Response:
         return Response(web.icon_svg(), media_type="image/svg+xml")
@@ -190,6 +204,11 @@ def build_server(conn=None, host: str = "127.0.0.1", port: int = 8765):
     def cases_citing_court(court: str, year: str | None = None, citing_court: str | None = None, after: str | None = None, before: str | None = None, limit: int = 25) -> dict[str, Any]:
         """Indiana opinions whose text has a (court year) parenthetical. court is an Indigo-style abbreviation such as '7th Cir.', 'N.D. Ind.', 'S.D. Ind.', or 'Ill.'. year is optional (2021). citing_court filters the citing Indiana court (ind, indctapp, indtc). Text-mention index only: not a citator, not treatment, not good law."""
         return tools.cases_citing_court(db, court, year, citing_court, after, before, limit)
+
+    @mcp.tool(title="Resolve an Indiana opinion citation", annotations=ToolAnnotations(title="Resolve an Indiana opinion citation", **ro))
+    def case_resolve(query: str) -> dict[str, Any]:
+        """Resolve an Indiana case number or Rule 22 citation, such as 'No. 22A-CT-925' or 'Steele v. Taber, No. 22A-CT-925, ¶ 4 (Ind. Ct. App. Jan. 17, 2023) (mem.)', to one opinion. Returns the canonical citation, a permalink (/opinions/{case number}#p4), whether a paragraph pinpoint exists in the text, and subsequent history read from later opinions' citations (not authoritative; not a citator)."""
+        return tools.resolve_opinion(db, query)
 
     return mcp
 

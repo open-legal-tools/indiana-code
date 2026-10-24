@@ -4,7 +4,7 @@ import json
 import re
 import sqlite3
 
-from . import asof, case_cites
+from . import asof, case_cites, cite
 from .asof import DISCLAIMER
 from .caselaw import COURTS, SOURCE as CASE_SOURCE
 
@@ -850,4 +850,149 @@ def cases_citing_court(conn, court, year=None, citing_court=None, after=None, be
     if not out["results"]:
         flags.append("no indexed opinion has this court/year parenthetical")
     out["flags"] = flags
+    return out
+
+
+# ---------------------------------------------------------------- opinion resolver and history
+
+_HISTORY = re.compile(
+    r"[^()]{0,40}\((?:Ind\.(?:\s+Ct\.\s+App\.)?|Ind\.\s+Tax\s+Ct\.)[^)]*\)(?:\s*\(mem\.\))?\s*,\s*"
+    r"(?P<event>trans\.\s+(?:denied|granted|dismissed)|vacated|aff.d|rev.d)"
+)
+HISTORY_NOTE = (
+    "Read from how later opinions in this extract cite the case; this is not authoritative and not a citator. "
+    "Check the court's docket (mycase.in.gov) for the actual history."
+)
+
+
+def _docket_numbers(conn, cluster_id):
+    """Case numbers found in the opinion's text, bare and unpadded. These can include related cases, so the opinion's own number is
+    taken from case_form first (see resolve_opinion)."""
+    rows = conn.execute("SELECT cite_key FROM case_cite WHERE cluster_id=? AND cite_kind='docket' ORDER BY cite_key", (str(cluster_id),))
+    return [r["cite_key"].removeprefix("docket|") for r in rows]
+
+
+def case_history(conn, cluster_id, own_docket=None):
+    """Subsequent history (trans. denied, vacated, ...) as later opinions in the extract wrote it after a citation of this case."""
+    needles = [r["raw_cite"] for r in conn.execute(
+        "SELECT raw_cite FROM case_cite WHERE cluster_id=? AND cite_kind='reporter' AND raw_cite IS NOT NULL", (str(cluster_id),))]
+    needles += [own_docket] if own_docket else []
+    out = {"events": [], "note": HISTORY_NOTE}
+    if not needles or not _has_case_mentions(conn):
+        return out
+    seen = set()
+    citing = conn.execute(
+        "SELECT k.cluster_id, k.case_name, k.date_filed, k.opinion_text FROM case_mention m "
+        "JOIN case_cluster k ON k.cluster_id = m.citing_id WHERE m.cited_id=? AND k.opinion_text IS NOT NULL "
+        "ORDER BY k.date_filed", (str(cluster_id),))
+    for row in citing:
+        text = row["opinion_text"]
+        for needle in needles:
+            for hit in re.finditer(re.escape(needle), text):
+                window = text[hit.end(): hit.end() + 140]
+                m = _HISTORY.match(window)
+                if not m:
+                    continue
+                event = re.sub(r"\s+", " ", m.group("event")).lower()
+                key = (row["cluster_id"], event)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out["events"].append({
+                    "event": event,
+                    "seen_in": {"cluster_id": row["cluster_id"], "case_name": row["case_name"], "date_filed": row["date_filed"]},
+                    "quoted": (needle + window[: m.end()]).strip(),
+                })
+    return out
+
+
+def _clusters_by_own_number(conn, text):
+    """Clusters whose slip opinion states this case number about itself (padded or unpadded). The extract's number is read from
+    the opinion text, and some batches share one number across many opinions, so this can return several."""
+    key = case_cites.docket_key(text or "")
+    if not key:
+        return []
+    docket = key.removeprefix("docket|")
+    head, _, num = docket.rpartition("-")
+    variants = {docket, f"{head}-{int(num):04d}"}
+    marks = ",".join("?" for _ in variants)
+    return [r[0] for r in conn.execute(
+        f"SELECT cluster_id FROM case_form WHERE case_number_in_text IN ({marks}) ORDER BY cluster_id", tuple(variants))]
+
+
+def _party(name):
+    return re.sub(r"[^a-z0-9]+", " ", (re.split(r"\s+v\.\s+", name or "")[0]).lower()).strip()
+
+
+def resolve_opinion(conn, query):
+    """Resolve a Rule 22 citation or case number to one opinion, with a canonical citation, permalink, pinpoint check and history."""
+    out = {"query": (query or "").strip(), "found": False, "source": CASE_SOURCE, **_assurance(conn), "flags": []}
+    pin = None
+    try:
+        parsed = cite.parse(out["query"])
+        key_query, pin = parsed.docket, parsed.pin
+    except ValueError:
+        parsed, key_query = None, out["query"]
+    owners = _clusters_by_own_number(conn, key_query)
+    if len(owners) > 1 and parsed and parsed.name:
+        named = [c for c in owners if _party(parsed.name) and _party(parsed.name) == _party(
+            (conn.execute("SELECT case_name FROM case_cluster WHERE cluster_id=?", (c,)).fetchone() or [""])[0])]
+        owners = named if len(named) == 1 else owners
+    if len(owners) > 1:
+        cards = [dict(cluster_id=r["cluster_id"], case_name=r["case_name"], date_filed=r["date_filed"]) for r in conn.execute(
+            f"SELECT cluster_id, case_name, date_filed FROM case_cluster WHERE cluster_id IN ({','.join('?' for _ in owners)}) "
+            "ORDER BY cluster_id LIMIT 25", tuple(owners))]
+        out["candidates"] = cards
+        out["flags"].append("more than one opinion in this extract carries this case number in its text; add the case name or use "
+                            "the cluster id from the candidates")
+        return out
+    own = owners[0] if owners else None
+    resolved = {"cluster_ids": [own], "ambiguous": False, "mentioned_only": False} if own else resolve_case_query(conn, key_query)
+    if resolved["cluster_ids"] and not own and case_cites.docket_key(key_query):
+        resolved["mentioned_only"] = True  # the number matched a case number found in the text, not the opinion's own
+    if resolved["ambiguous"]:
+        out["candidates"] = resolved["cluster_ids"]
+        out["flags"].append("this key matches more than one cluster in this extract; not resolved")
+        return out
+    if not resolved["cluster_ids"]:
+        out["flags"].append("no opinion in this extract matches that case number or citation")
+        return out
+    cid = resolved["cluster_ids"][0]
+    if resolved.get("mentioned_only"):
+        out["flags"].append("this case number is only mentioned in the text of this opinion; it is not the number the opinion states about itself, "
+                            "so it may be a related case. Check that this is the opinion you want")
+    row = conn.execute("SELECT * FROM case_cluster WHERE cluster_id=?", (str(cid),)).fetchone()
+    _own = conn.execute("SELECT case_number_in_text FROM case_form WHERE cluster_id=?", (str(cid),)).fetchone()
+    if _own and _own[0]:
+        others = conn.execute("SELECT count(*) FROM case_form WHERE case_number_in_text=? AND cluster_id!=?", (_own[0], str(cid))).fetchone()[0]
+        if others:
+            out["flags"].append(f"the case number read from this opinion's text is shared by {others} other opinions in the extract, "
+                                "so it may not be this opinion's own number; verify against the official opinion")
+    form = conn.execute("SELECT decision_form, case_number_in_text FROM case_form WHERE cluster_id=?", (str(cid),)).fetchone()
+    dockets = _docket_numbers(conn, cid)
+    own = case_cites.normalize_docket(form["case_number_in_text"]) if form and form["case_number_in_text"] else (parsed.docket if parsed else None)
+    docket = own or (dockets[0] if dockets else None)
+    dockets = ([docket] if docket else []) + [d for d in dockets if d != docket]
+    out.update(found=True, cluster_id=cid, case_name=row["case_name"], court=row["court"], date_filed=row["date_filed"],
+               docket_numbers=dockets, url=f"https://www.courtlistener.com/opinion/{row['cluster_id']}/{row['slug']}/" if row["slug"] else CASE_SOURCE)
+    if docket:
+        date = datetime.date.fromisoformat(row["date_filed"]) if row["date_filed"] else None
+        c = cite.Citation(docket=docket, name=row["case_name"], date=date, mem=bool(form and form["decision_form"] == "memorandum"), pin=pin)
+        out.update(citation=cite.format_full(c), short=cite.format_short(c), permalink=cite.permalink(c), machine_id=cite.machine_id(c))
+    else:
+        out["flags"].append("no Rule 22 case number is known for this opinion, so no case-number citation was built")
+    if pin is not None:
+        if pin.kind == "para":
+            marks = dict(cite.paragraph_markers(row["opinion_text"] or ""))
+            if pin.start in marks:
+                body = row["opinion_text"][marks[pin.start]:]
+                snippet = re.sub(r"^\[\d+\]\s*", "", body.split("\n")[0]).strip()[:140]
+                out["pinpoint"] = {"kind": "para", "number": pin.start, "exists": True, "snippet": snippet}
+            else:
+                out["pinpoint"] = {"kind": "para", "number": pin.start, "exists": False,
+                                   "note": "this opinion has no such numbered paragraph in the text on this server"}
+        else:
+            out["pinpoint"] = {"kind": "page", "number": pin.start, "exists": None,
+                               "note": "page pinpoints need the official PDF; this server holds plain text without page breaks"}
+    out["history"] = case_history(conn, cid, docket)
     return out

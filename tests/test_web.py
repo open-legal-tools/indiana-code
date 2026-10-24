@@ -35,7 +35,7 @@ def test_icon_svg_is_self_contained():
 def test_custom_http_routes_registered(mini):
     mcp = build_server(conn=mini)
     paths = {route.path for route in mcp._custom_starlette_routes}
-    assert paths == {"/", "/terms", "/privacy", "/icon.svg", "/health"}
+    assert paths == {"/", "/terms", "/privacy", "/icon.svg", "/health", "/opinions/{docket}"}
 
 
 def test_extract_archive_titles(tmp_path):
