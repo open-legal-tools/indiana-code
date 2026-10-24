@@ -128,3 +128,24 @@ def test_a_mentioned_only_number_is_flagged_not_presented_as_the_opinion(tmp_pat
     out = tools.resolve_opinion(conn, "No. 20A-CR-5")
     assert out["found"] and out["cluster_id"] == "2"
     assert any("mentioned" in f for f in out["flags"]) and out["citation"].startswith("Later v. State, No. 24A-CR-77")
+
+
+def _two_cases_one_number(tmp_path):
+    conn = _db(tmp_path)
+    conn.execute("INSERT INTO case_form(cluster_id, decision_form, citability, case_number_in_text, disagrees_with_source) VALUES ('2','memorandum','persuasive','22A-CT-925',0)")
+    conn.commit()
+    return conn
+
+
+def test_a_number_shared_by_several_opinions_returns_candidates_not_a_guess(tmp_path):
+    out = tools.resolve_opinion(_two_cases_one_number(tmp_path), "No. 22A-CT-925")
+    assert out["found"] is False
+    assert [c["cluster_id"] for c in out["candidates"]] == ["1", "2"]
+    assert out["candidates"][0]["case_name"] == "Steele v. Taber"
+    assert any("more than one opinion" in f for f in out["flags"])
+
+
+def test_the_case_name_in_the_citation_picks_among_opinions_sharing_a_number(tmp_path):
+    out = tools.resolve_opinion(_two_cases_one_number(tmp_path), "Steele v. Taber, No. 22A-CT-925 (Ind. Ct. App. Jan. 17, 2023)")
+    assert out["found"] and out["cluster_id"] == "1"
+    assert any("shared" in f for f in out["flags"])  # still warns that the number is not unique in the extract
