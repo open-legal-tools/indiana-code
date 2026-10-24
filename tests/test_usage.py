@@ -58,3 +58,34 @@ def test_counting_failure_never_breaks_a_tool():
     mcp = _server(Broken())
     result = asyncio.run(mcp.call_tool("ok_tool", {"secret_query": "x"}))
     assert result
+
+
+def test_page_views_are_counted_by_page_template_only(tmp_path: Path):
+    from starlette.responses import HTMLResponse
+    from starlette.testclient import TestClient
+
+    db = tmp_path / "usage.sqlite"
+    mcp = FastMCP("t")
+    usage.count_pages(mcp, usage.UsageCounter(str(db)))
+
+    @mcp.custom_route("/", methods=["GET"], name="landing")
+    async def landing(_request):
+        return HTMLResponse("hi")
+
+    @mcp.custom_route("/opinions/{docket}", methods=["GET"], name="opinion")
+    async def opinion(request):
+        return HTMLResponse("x", status_code=404 if request.path_params["docket"] == "99A-CR-1" else 200)
+
+    @mcp.custom_route("/health", methods=["GET"], name="health")
+    async def health(_request):
+        return HTMLResponse("ok")
+
+    client = TestClient(mcp.streamable_http_app())
+    client.get("/")
+    client.get("/")
+    client.get("/opinions/22A-CT-925")
+    client.get("/opinions/99A-CR-1")
+    client.get("/health")
+    assert _rows(db) == [("page /", 2, 0), ("page /opinions/{docket}", 2, 1)]
+    raw = db.read_bytes()
+    assert b"22A-CT-925" not in raw and b"99A-CR-1" not in raw

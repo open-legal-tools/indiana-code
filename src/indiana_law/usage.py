@@ -88,6 +88,39 @@ def count_tools(mcp, counter: UsageCounter | None) -> None:
     mcp.tool = tool
 
 
+def count_pages(mcp, counter: UsageCounter | None, skip: tuple[str, ...] = ("/health", "/icon.svg")) -> None:
+    """Count each web page open as one "page <route template>" per UTC day (never the address itself, so no case number or
+    other part of a URL is kept). Health checks and the icon are not counted. Does nothing when counter is None."""
+    if counter is None:
+        return
+    register = mcp.custom_route
+
+    def custom_route(path, *args, **kwargs):
+        decorate = register(path, *args, **kwargs)
+        if path in skip:
+            return decorate
+
+        def wrap(handler):
+            @functools.wraps(handler)
+            async def counted(request):
+                ok = False
+                try:
+                    response = await handler(request)
+                    ok = getattr(response, "status_code", 200) < 400
+                    return response
+                finally:
+                    try:
+                        counter.record(f"page {path}", ok)
+                    except Exception:
+                        pass
+
+            return decorate(counted)
+
+        return wrap
+
+    mcp.custom_route = custom_route
+
+
 def report(path: str) -> list[tuple[str, str, int, int]]:
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     return conn.execute("SELECT day, tool, calls, errors FROM usage ORDER BY day, tool").fetchall()
